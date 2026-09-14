@@ -123,6 +123,7 @@ class RecommendationService:
             "team": player["team"],
             "expected_points": player["expected_points"],
             "wildcard_expected_points": player["wildcard_expected_points"],
+            "wildcard_confidence": player["wildcard_confidence"],
             "expected_minutes": player["expected_minutes"],
             "form": player.get("form"),
         }

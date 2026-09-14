@@ -33,7 +33,7 @@ class Settings:
     notification_time: str = _env("NOTIFICATION_TIME", "19:00")
     timezone: str = _env("TIMEZONE", "Asia/Kolkata")
     chip_minimum_gain: float = float(_env("CHIP_MINIMUM_GAIN", "4"))
-    wildcard_horizon: int = int(_env("WILDCARD_HORIZON", "3"))
+    wildcard_horizon: int = int(_env("WILDCARD_HORIZON", "10"))
 
 
 settings = Settings()

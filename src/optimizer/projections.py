@@ -14,9 +14,13 @@ class ProjectionEngine:
             base *= self._fbref_multiplier(name, fbref_stats or {})
             base *= self._odds_multiplier(player, odds or [])
             horizon_points = 0.0
-            for horizon_difficulty in horizon_maps.get(player.get("team"), [difficulty] * wildcard_horizon):
+            horizon_fixtures = horizon_maps.get(player.get("team"), [])
+            if not horizon_fixtures:
+                horizon_fixtures = [difficulty] * wildcard_horizon
+            for week_index, horizon_difficulty in enumerate(horizon_fixtures[:wildcard_horizon]):
                 horizon_multiplier = max(0.65, min(1.25, 1.15 - (horizon_difficulty - 1) * 0.125))
-                horizon_points += base * horizon_multiplier * availability * minutes_probability
+                horizon_confidence = max(0.55, 1.0 - week_index * 0.05)
+                horizon_points += base * horizon_multiplier * availability * minutes_probability * horizon_confidence
             enriched = dict(player)
             enriched.update({
                 "name": name,
@@ -25,6 +29,7 @@ class ProjectionEngine:
                 "expected_minutes": round(90 * minutes_probability, 1),
                 "expected_points": round(base * multiplier * availability * minutes_probability, 2),
                 "wildcard_expected_points": round(horizon_points, 2),
+                "wildcard_confidence": round(max(0.55, 1.0 - max(0, len(horizon_fixtures) - 1) * 0.025), 2),
             })
             projections.append(enriched)
         return projections

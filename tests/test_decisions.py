@@ -71,6 +71,7 @@ def test_projection_provides_multi_gameweek_wildcard_value():
     result = ProjectionEngine().project([player], fixtures, gameweek=4, wildcard_horizon=3)[0]
 
     assert result["wildcard_expected_points"] > result["expected_points"]
+    assert 0.55 <= result["wildcard_confidence"] <= 1.0
 
 
 def test_projection_estimates_minutes_from_historical_starts():

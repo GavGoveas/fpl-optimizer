@@ -32,19 +32,19 @@ class ChipsOptimizer:
             recommendation = {"expected_gain": 0.0, "target": None, "reason": "no available chip clears the configured expected-gain threshold"}
         return {"use_chip": best_chip, "best_chip": best_chip, "opportunities": eligible, "recommendation": recommendation}
 
-    def _chip_squad(self, score_field="expected_points"):
+    def _chip_squad(self, score_field="expected_points", lineup_score_field="expected_points"):
         if not self.all_players or self.budget is None:
             return None
         squad = self.build_best_squad(self.all_players, self.budget, score_field)
         if len(squad) != 15:
             return None
-        starters, bench = self.select_lineup(squad, score_field)
-        captain = max(starters, key=lambda player: self._points(player, score_field), default=None)
-        vice = max((player for player in starters if player != captain), key=lambda player: self._points(player, score_field), default=None)
+        starters, bench = self.select_lineup(squad, lineup_score_field)
+        captain = max(starters, key=lambda player: self._points(player, "expected_points"), default=None)
+        vice = max((player for player in starters if player != captain), key=lambda player: self._points(player, "expected_points"), default=None)
         return {"players": squad, "starting_xi": starters, "bench": bench, "captain": captain, "vice_captain": vice}
 
     def build_chip_squad(self, score_field="expected_points"):
-        return self._chip_squad(score_field)
+        return self._chip_squad(score_field, "expected_points")
 
     @classmethod
     def build_best_squad(cls, players, budget, score_field="expected_points"):
