@@ -41,6 +41,7 @@ class RecommendationService:
         projected = self.projection_engine.project(
             elements, self.fpl.get_fixtures(), gameweek, news_items,
             enrichment["fbref"], enrichment["odds"],
+            wildcard_horizon=settings.wildcard_horizon,
         )
         by_id = {player["id"]: self._normalize(player) for player in projected}
         squad = [by_id[pick["element"]] for pick in picks]
@@ -71,10 +72,12 @@ class RecommendationService:
             all_players=all_players,
             budget=budget,
         )
-        chip_squad = chip_optimizer.build_chip_squad()
-        chip_gain = self._lineup_gain(starting, chip_squad["starting_xi"] if chip_squad else [])
-        chip_optimizer.free_hit_gain = chip_gain
-        chip_optimizer.wildcard_gain = chip_gain
+        free_hit_squad = chip_optimizer.build_chip_squad("expected_points")
+        wildcard_squad = chip_optimizer.build_chip_squad("wildcard_expected_points")
+        chip_optimizer.free_hit_squad = free_hit_squad
+        chip_optimizer.wildcard_squad = wildcard_squad
+        chip_optimizer.free_hit_gain = self._lineup_gain(starting, free_hit_squad["starting_xi"] if free_hit_squad else [], "expected_points")
+        chip_optimizer.wildcard_gain = self._lineup_gain(starting, wildcard_squad["starting_xi"] if wildcard_squad else [], "wildcard_expected_points")
         chip_analysis = chip_optimizer.recommend_chip_usage()
         captain = max(starting, key=lambda player: player["expected_points"], default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]
@@ -119,6 +122,8 @@ class RecommendationService:
             "price": player["now_cost"] / 10,
             "team": player["team"],
             "expected_points": player["expected_points"],
+            "wildcard_expected_points": player["wildcard_expected_points"],
+            "expected_minutes": player["expected_minutes"],
             "form": player.get("form"),
         }
 
@@ -144,7 +149,7 @@ class RecommendationService:
         return round(gain, 2)
 
     @staticmethod
-    def _lineup_gain(current_players, proposed_players):
-        current_points = sum(player["expected_points"] for player in current_players)
-        proposed_points = sum(player["expected_points"] for player in proposed_players)
+    def _lineup_gain(current_players, proposed_players, score_field="expected_points"):
+        current_points = sum(player.get(score_field, 0) for player in current_players)
+        proposed_points = sum(player.get(score_field, 0) for player in proposed_players)
         return round(max(0.0, proposed_points - current_points), 2)

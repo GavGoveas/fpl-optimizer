@@ -46,6 +46,11 @@ def format_recommendation(recommendation):
         lines.append(f"USE {chip} because {chip_reason}")
         chip_squad = recommendation["chips"].get("opportunities", {}).get(chip, {}).get("squad")
         if chip in {"FH", "WC"} and chip_squad:
+            persistence = recommendation["chips"]["opportunities"][chip].get("persistence")
+            if persistence == "one_gameweek_then_revert":
+                lines.append("Free Hit reminder: this squad applies for this GW only, then your original squad returns")
+            elif persistence == "permanent":
+                lines.append("Wildcard reminder: this squad is permanent")
             lines.append("Proposed full squad:")
             lines.extend(f"- {player['name']} ({player['position']})" for player in chip_squad["players"])
             lines.append("Starting XI: " + ", ".join(player["name"] for player in chip_squad["starting_xi"]))

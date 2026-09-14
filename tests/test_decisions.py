@@ -56,3 +56,26 @@ def test_squad_chips_include_full_legal_squad_and_lineup():
     assert len(squad["players"]) == 15
     assert len(squad["starting_xi"]) == 11
     assert len(squad["bench"]) == 4
+    assert result["opportunities"]["FH"]["persistence"] == "one_gameweek_then_revert"
+    assert result["opportunities"]["WC"]["persistence"] == "permanent"
+
+
+def test_projection_provides_multi_gameweek_wildcard_value():
+    player = {"id": 1, "first_name": "Fit", "second_name": "Player", "team": 1, "ep_next": "6.0", "status": "a"}
+    fixtures = [
+        {"event": 5, "team_h": 1, "team_h_difficulty": 2, "team_a": 2, "team_a_difficulty": 3},
+        {"event": 6, "team_h": 1, "team_h_difficulty": 1, "team_a": 3, "team_a_difficulty": 4},
+        {"event": 7, "team_h": 4, "team_h_difficulty": 3, "team_a": 1, "team_a_difficulty": 2},
+    ]
+
+    result = ProjectionEngine().project([player], fixtures, gameweek=4, wildcard_horizon=3)[0]
+
+    assert result["wildcard_expected_points"] > result["expected_points"]
+
+
+def test_projection_estimates_minutes_from_historical_starts():
+    player = {"id": 1, "first_name": "Regular", "second_name": "Starter", "team": 1, "ep_next": "6.0", "minutes": 360, "starts": 4, "status": "a"}
+
+    result = ProjectionEngine().project([player], [], gameweek=4)[0]
+
+    assert result["expected_minutes"] == 90

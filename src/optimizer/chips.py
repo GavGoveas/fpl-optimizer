@@ -1,5 +1,5 @@
 class ChipsOptimizer:
-    def __init__(self, players=None, bench=None, free_hit_gain=0.0, wildcard_gain=0.0, available=None, minimum_gain=4.0, all_players=None, budget=None):
+    def __init__(self, players=None, bench=None, free_hit_gain=0.0, wildcard_gain=0.0, available=None, minimum_gain=4.0, all_players=None, budget=None, free_hit_squad=None, wildcard_squad=None):
         self.players = list(players or [])
         self.bench = list(bench or [])
         self.free_hit_gain = float(free_hit_gain)
@@ -8,14 +8,16 @@ class ChipsOptimizer:
         self.minimum_gain = minimum_gain
         self.all_players = list(all_players or [])
         self.budget = budget
+        self.free_hit_squad = free_hit_squad
+        self.wildcard_squad = wildcard_squad
 
     def recommend_chip_usage(self):
         captain = max(self.players, key=self._points, default=None)
         opportunities = {
             "TC": {"expected_gain": self._points(captain) if captain else 0.0, "target": captain.get("name") if captain else None},
             "BB": {"expected_gain": sum(self._points(player) for player in self.bench), "target": None},
-            "FH": {"expected_gain": self.free_hit_gain, "target": None, "squad": self._chip_squad()},
-            "WC": {"expected_gain": self.wildcard_gain, "target": None, "squad": self._chip_squad()},
+            "FH": {"expected_gain": self.free_hit_gain, "target": None, "squad": self.free_hit_squad or self._chip_squad(), "persistence": "one_gameweek_then_revert"},
+            "WC": {"expected_gain": self.wildcard_gain, "target": None, "squad": self.wildcard_squad or self._chip_squad("wildcard_expected_points"), "persistence": "permanent"},
         }
         eligible = {chip: value for chip, value in opportunities.items() if chip in self.available}
         best_chip = max(eligible, key=lambda chip: eligible[chip]["expected_gain"], default=None)
@@ -30,20 +32,22 @@ class ChipsOptimizer:
             recommendation = {"expected_gain": 0.0, "target": None, "reason": "no available chip clears the configured expected-gain threshold"}
         return {"use_chip": best_chip, "best_chip": best_chip, "opportunities": eligible, "recommendation": recommendation}
 
-    def _chip_squad(self):
+    def _chip_squad(self, score_field="expected_points"):
         if not self.all_players or self.budget is None:
             return None
-        squad = self.build_best_squad(self.all_players, self.budget)
-        starters, bench = self.select_lineup(squad)
-        captain = max(starters, key=self._points, default=None)
-        vice = max((player for player in starters if player != captain), key=self._points, default=None)
+        squad = self.build_best_squad(self.all_players, self.budget, score_field)
+        if len(squad) != 15:
+            return None
+        starters, bench = self.select_lineup(squad, score_field)
+        captain = max(starters, key=lambda player: self._points(player, score_field), default=None)
+        vice = max((player for player in starters if player != captain), key=lambda player: self._points(player, score_field), default=None)
         return {"players": squad, "starting_xi": starters, "bench": bench, "captain": captain, "vice_captain": vice}
 
-    def build_chip_squad(self):
-        return self._chip_squad()
+    def build_chip_squad(self, score_field="expected_points"):
+        return self._chip_squad(score_field)
 
     @classmethod
-    def build_best_squad(cls, players, budget):
+    def build_best_squad(cls, players, budget, score_field="expected_points"):
         quotas = {"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
         selected = []
         club_counts = {}
@@ -61,14 +65,14 @@ class ChipsOptimizer:
                 club_counts[club] = club_counts.get(club, 0) + 1
                 remaining_budget -= price
         selected_ids = {player["id"] for player in selected}
-        for candidate in sorted(players, key=cls._points, reverse=True):
+        for candidate in sorted(players, key=lambda player: cls._points(player, score_field), reverse=True):
             if candidate["id"] in selected_ids:
                 continue
             position = candidate.get("position")
             current_options = [player for player in selected if player.get("position") == position]
             if not current_options:
                 continue
-            outgoing = min(current_options, key=cls._points)
+            outgoing = min(current_options, key=lambda player: cls._points(player, score_field))
             candidate_price = float(candidate.get("price", 0))
             outgoing_price = float(outgoing.get("price", 0))
             candidate_club = candidate.get("team")
@@ -88,18 +92,18 @@ class ChipsOptimizer:
         return selected
 
     @classmethod
-    def select_lineup(cls, squad):
+    def select_lineup(cls, squad, score_field="expected_points"):
         starters = []
         for position, count in (("GKP", 1), ("DEF", 3), ("MID", 2), ("FWD", 1)):
-            starters.extend(sorted((player for player in squad if player.get("position") == position), key=cls._points, reverse=True)[:count])
+            starters.extend(sorted((player for player in squad if player.get("position") == position), key=lambda player: cls._points(player, score_field), reverse=True)[:count])
         remaining = [player for player in squad if player not in starters]
-        starters.extend(sorted(remaining, key=cls._points, reverse=True)[:11 - len(starters)])
-        bench = sorted((player for player in squad if player not in starters), key=cls._points, reverse=True)
+        starters.extend(sorted(remaining, key=lambda player: cls._points(player, score_field), reverse=True)[:11 - len(starters)])
+        bench = sorted((player for player in squad if player not in starters), key=lambda player: cls._points(player, score_field), reverse=True)
         return starters, bench
 
     @staticmethod
-    def _points(player):
-        return float(player.get("expected_points", 0))
+    def _points(player, score_field="expected_points"):
+        return float(player.get(score_field, 0))
 
 
 Chips = ChipsOptimizer

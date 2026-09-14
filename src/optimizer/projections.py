@@ -1,6 +1,7 @@
 class ProjectionEngine:
-    def project(self, players, fixtures=None, gameweek=None, news=None, fbref_stats=None, odds=None):
+    def project(self, players, fixtures=None, gameweek=None, news=None, fbref_stats=None, odds=None, wildcard_horizon=3):
         fixture_map = self._fixture_map(fixtures or [], gameweek)
+        horizon_maps = self._fixture_maps(fixtures or [], gameweek, wildcard_horizon)
         news_text = " ".join(self._news_text(item) for item in (news or []))
         projections = []
         for player in players:
@@ -9,14 +10,21 @@ class ProjectionEngine:
             difficulty = fixture_map.get(player.get("team"), 3.0)
             multiplier = max(0.65, min(1.25, 1.15 - (difficulty - 1) * 0.125))
             availability = self._availability(player, name, news_text)
+            minutes_probability = self._minutes_probability(player)
             base *= self._fbref_multiplier(name, fbref_stats or {})
             base *= self._odds_multiplier(player, odds or [])
+            horizon_points = 0.0
+            for horizon_difficulty in horizon_maps.get(player.get("team"), [difficulty] * wildcard_horizon):
+                horizon_multiplier = max(0.65, min(1.25, 1.15 - (horizon_difficulty - 1) * 0.125))
+                horizon_points += base * horizon_multiplier * availability * minutes_probability
             enriched = dict(player)
             enriched.update({
                 "name": name,
                 "fixture_difficulty": difficulty,
                 "availability": availability,
-                "expected_points": round(base * multiplier * availability, 2),
+                "expected_minutes": round(90 * minutes_probability, 1),
+                "expected_points": round(base * multiplier * availability * minutes_probability, 2),
+                "wildcard_expected_points": round(horizon_points, 2),
             })
             projections.append(enriched)
         return projections
@@ -25,7 +33,7 @@ class ProjectionEngine:
     def _fixture_map(fixtures, gameweek):
         values = {}
         for fixture in fixtures:
-            if gameweek is not None and fixture.get("event") not in (gameweek + 1, gameweek + 2):
+            if gameweek is not None and fixture.get("event") != gameweek + 1:
                 continue
             for team_key, difficulty_key in (("team_h", "team_h_difficulty"), ("team_a", "team_a_difficulty")):
                 team = fixture.get(team_key)
@@ -33,6 +41,21 @@ class ProjectionEngine:
                 if team is not None and difficulty is not None:
                     values.setdefault(team, []).append(float(difficulty))
         return {team: sum(scores) / len(scores) for team, scores in values.items()}
+
+    @staticmethod
+    def _fixture_maps(fixtures, gameweek, horizon):
+        values = {}
+        first_event = (gameweek or 0) + 1
+        for fixture in fixtures:
+            event = fixture.get("event")
+            if event not in range(first_event, first_event + horizon):
+                continue
+            for team_key, difficulty_key in (("team_h", "team_h_difficulty"), ("team_a", "team_a_difficulty")):
+                team = fixture.get(team_key)
+                difficulty = fixture.get(difficulty_key)
+                if team is not None and difficulty is not None:
+                    values.setdefault(team, {}).setdefault(event, []).append(float(difficulty))
+        return {team: [sum(values_by_event[event]) / len(values_by_event[event]) for event in sorted(values_by_event)] for team, values_by_event in values.items()}
 
     @staticmethod
     def _availability(player, name, news_text):
@@ -44,6 +67,18 @@ class ProjectionEngine:
         if name and name.lower() in news_text and chance is None:
             return 0.75
         return 1.0
+
+    @staticmethod
+    def _minutes_probability(player):
+        chance = player.get("chance_of_playing_next_round")
+        if chance is not None:
+            return max(0.0, min(1.0, float(chance) / 100))
+        minutes = float(player.get("minutes", 0) or 0)
+        starts = float(player.get("starts", 0) or 0)
+        if minutes <= 0:
+            return 0.35
+        historical_start_rate = starts / max(1.0, minutes / 90)
+        return max(0.35, min(1.0, historical_start_rate))
 
     @staticmethod
     def _news_text(item):
