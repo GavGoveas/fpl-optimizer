@@ -25,7 +25,7 @@ class ChipsOptimizer:
             eligible[best_chip]["expected_gain"] = round(eligible[best_chip]["expected_gain"], 2)
         recommendation = eligible.get(best_chip)
         if recommendation:
-            recommendation["reason"] = f"projected gain is {recommendation['expected_gain']:.1f}, above the {self.minimum_gain:.1f} point threshold"
+            recommendation["reason"] = f"the proposed squad gains {recommendation['expected_gain']:.1f} points over your current starting XI, above the {self.minimum_gain:.1f} point threshold"
         else:
             recommendation = {"expected_gain": 0.0, "target": None, "reason": "no available chip clears the configured expected-gain threshold"}
         return {"use_chip": best_chip, "best_chip": best_chip, "opportunities": eligible, "recommendation": recommendation}
@@ -38,6 +38,9 @@ class ChipsOptimizer:
         captain = max(starters, key=self._points, default=None)
         vice = max((player for player in starters if player != captain), key=self._points, default=None)
         return {"players": squad, "starting_xi": starters, "bench": bench, "captain": captain, "vice_captain": vice}
+
+    def build_chip_squad(self):
+        return self._chip_squad()
 
     @classmethod
     def build_best_squad(cls, players, budget):

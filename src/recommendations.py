@@ -63,18 +63,19 @@ class RecommendationService:
         available_chips = {chip for chip in {"TC", "BB", "FH", "WC"} if chip not in used_chips}
         all_players = list(by_id.values())
         budget = (manager.get("last_deadline_value", manager.get("value", 0)) + manager.get("last_deadline_bank", manager.get("bank", 0))) / 10
-        free_hit_gain = self._replacement_gain(starting, players)
-        wildcard_gain = self._replacement_gain(squad, players)
-        chip_analysis = ChipsOptimizer(
+        chip_optimizer = ChipsOptimizer(
             starting,
             bench,
-            free_hit_gain=free_hit_gain,
-            wildcard_gain=wildcard_gain,
             available=available_chips,
             minimum_gain=settings.chip_minimum_gain,
             all_players=all_players,
             budget=budget,
-        ).recommend_chip_usage()
+        )
+        chip_squad = chip_optimizer.build_chip_squad()
+        chip_gain = self._lineup_gain(starting, chip_squad["starting_xi"] if chip_squad else [])
+        chip_optimizer.free_hit_gain = chip_gain
+        chip_optimizer.wildcard_gain = chip_gain
+        chip_analysis = chip_optimizer.recommend_chip_usage()
         captain = max(starting, key=lambda player: player["expected_points"], default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]
         vice_captain = max(vice_candidates, key=lambda player: player["expected_points"], default=None)
@@ -141,3 +142,9 @@ class RecommendationService:
                     gain += difference
                     used.add(replacement["id"])
         return round(gain, 2)
+
+    @staticmethod
+    def _lineup_gain(current_players, proposed_players):
+        current_points = sum(player["expected_points"] for player in current_players)
+        proposed_points = sum(player["expected_points"] for player in proposed_players)
+        return round(max(0.0, proposed_points - current_points), 2)
