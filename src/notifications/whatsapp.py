@@ -1,8 +1,13 @@
-from twilio.rest import Client
+try:
+    from twilio.rest import Client
+except ModuleNotFoundError:
+    Client = None
 
 
 class WhatsAppNotifier:
     def __init__(self, account_sid, auth_token, sender, recipient):
+        if Client is None:
+            raise RuntimeError("twilio is required for WhatsApp delivery; install requirements.txt")
         if not all((account_sid, auth_token, sender, recipient)):
             raise ValueError("Twilio WhatsApp settings are incomplete")
         self.client = Client(account_sid, auth_token)
@@ -15,7 +20,7 @@ class WhatsAppNotifier:
 
 def format_recommendation(recommendation):
     transfer = recommendation["transfers"]
-    lines = [f"FPL GW {recommendation['gameweek']} recommendation", f"Free transfers: {recommendation['free_transfers']}"]
+    lines = [f"FPL GW {recommendation['gameweek']} plan", f"GW {recommendation['gameweek']} starting free transfers: {recommendation['free_transfers']}"]
     lines.append(f"Transfer strategy: {'TAKE HITS' if transfer['should_take_hits'] else 'NO HITS'}")
     for item in transfer["transfers"]:
         lines.append(f"- {item['player_out']['name']} -> {item['player_in']['name']} ({item['gain']:.1f} projected points)")

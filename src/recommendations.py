@@ -57,7 +57,8 @@ class RecommendationService:
         chip_analysis = ChipsOptimizer(starting, bench).recommend_chip_usage()
         return {
             "manager_id": manager_id,
-            "gameweek": gameweek,
+            "gameweek": gameweek + 1,
+            "source_gameweek": gameweek,
             "manager_name": manager.get("name"),
             "free_transfers": free_transfers,
             "transfers": transfer_analysis,
