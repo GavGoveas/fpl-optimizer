@@ -46,10 +46,10 @@ class RecommendationService:
         squad = [by_id[pick["element"]] for pick in picks]
         squad_ids = {player["id"] for player in squad}
         players = [player for player in by_id.values() if player["id"] not in squad_ids]
+        current_free_transfers = self.fpl.remaining_free_transfers(history, gameweek)
         free_transfers = settings.free_transfers_override
         if free_transfers is None:
-            free_transfers = self.fpl.upcoming_free_transfers(history)
-        current_free_transfers = self.fpl.remaining_free_transfers(history, gameweek)
+            free_transfers = current_free_transfers
         transfer_analysis = TransferOptimizer(
             squad=squad,
             players=players,
@@ -61,6 +61,8 @@ class RecommendationService:
         bench = [player for player in squad if player["id"] not in starter_ids]
         used_chips = {chip.get("name", "").upper().replace(" ", "_") for chip in history.get("chips", [])}
         available_chips = {chip for chip in {"TC", "BB", "FH", "WC"} if chip not in used_chips}
+        all_players = list(by_id.values())
+        budget = (manager.get("last_deadline_value", manager.get("value", 0)) + manager.get("last_deadline_bank", manager.get("bank", 0))) / 10
         free_hit_gain = self._replacement_gain(starting, players)
         wildcard_gain = self._replacement_gain(squad, players)
         chip_analysis = ChipsOptimizer(
@@ -70,6 +72,8 @@ class RecommendationService:
             wildcard_gain=wildcard_gain,
             available=available_chips,
             minimum_gain=settings.chip_minimum_gain,
+            all_players=all_players,
+            budget=budget,
         ).recommend_chip_usage()
         captain = max(starting, key=lambda player: player["expected_points"], default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]

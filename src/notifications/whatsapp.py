@@ -37,6 +37,14 @@ def format_recommendation(recommendation):
     chip_reason = chip_data.get("recommendation", {}).get("reason", "no chip recommendation was generated")
     if chip:
         lines.append(f"USE {chip} because {chip_reason}")
+        chip_squad = recommendation["chips"].get("opportunities", {}).get(chip, {}).get("squad")
+        if chip in {"FH", "WC"} and chip_squad:
+            lines.append("Proposed full squad:")
+            lines.extend(f"- {player['name']} ({player['position']})" for player in chip_squad["players"])
+            lines.append("Starting XI: " + ", ".join(player["name"] for player in chip_squad["starting_xi"]))
+            lines.append("Bench: " + ", ".join(player["name"] for player in chip_squad["bench"]))
+            lines.append(f"Chip captain: {chip_squad['captain']['name']}")
+            lines.append(f"Chip vice-captain: {chip_squad['vice_captain']['name']}")
     else:
         lines.append(f"DO NOT USE ANY CHIP because {chip_reason}")
     return "\n".join(lines)

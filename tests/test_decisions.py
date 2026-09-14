@@ -40,3 +40,19 @@ def test_chip_optimizer_respects_no_available_chips():
     result = ChipsOptimizer([{"name": "Captain", "expected_points": 8}], available=set()).recommend_chip_usage()
 
     assert result["use_chip"] is None
+
+
+def test_squad_chips_include_full_legal_squad_and_lineup():
+    players = []
+    team_id = 0
+    for position, count in (("GKP", 2), ("DEF", 5), ("MID", 5), ("FWD", 3)):
+        for index in range(count):
+            players.append({"id": f"{position}{index}", "name": f"{position} {index}", "position": position, "team": team_id, "price": 5, "expected_points": 5 + index})
+            team_id += 1
+
+    result = ChipsOptimizer(players[:11], players[11:], free_hit_gain=5, wildcard_gain=5, all_players=players, budget=100).recommend_chip_usage()
+
+    squad = result["opportunities"]["FH"]["squad"]
+    assert len(squad["players"]) == 15
+    assert len(squad["starting_xi"]) == 11
+    assert len(squad["bench"]) == 4
