@@ -18,6 +18,10 @@ jobs:
       - run: python -m src.run_recommendation
         env:
           FPL_MANAGER_ID: ${{ secrets.FPL_MANAGER_ID }}
+          FPL_FREE_TRANSFERS: ${{ secrets.FPL_FREE_TRANSFERS }}
+          RSS_URLS: ${{ vars.RSS_URLS }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          CHIP_MINIMUM_GAIN: ${{ vars.CHIP_MINIMUM_GAIN }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SOCCERDATA_API_KEY: ${{ secrets.SOCCERDATA_API_KEY }}

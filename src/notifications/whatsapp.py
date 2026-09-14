@@ -20,10 +20,23 @@ class WhatsAppNotifier:
 
 def format_recommendation(recommendation):
     transfer = recommendation["transfers"]
-    lines = [f"FPL GW {recommendation['gameweek']} plan", f"GW {recommendation['gameweek']} starting free transfers: {recommendation['free_transfers']}"]
+    lines = [
+        f"FPL GW {recommendation['gameweek']} plan",
+        f"GW {recommendation['source_gameweek']} unused free transfers: {recommendation['current_free_transfers']}",
+        f"GW {recommendation['gameweek']} starting free transfers: {recommendation['free_transfers']}",
+    ]
     lines.append(f"Transfer strategy: {'TAKE HITS' if transfer['should_take_hits'] else 'NO HITS'}")
     for item in transfer["transfers"]:
         lines.append(f"- {item['player_out']['name']} -> {item['player_in']['name']} ({item['gain']:.1f} projected points)")
-    chip = recommendation["chips"].get("best_chip")
-    lines.append(f"Best chip opportunity: {chip or 'none'}")
+    captain = recommendation.get("captain", {})
+    vice_captain = recommendation.get("vice_captain", {})
+    lines.append(f"Captain: {captain.get('name', 'none')}")
+    lines.append(f"Vice-captain: {vice_captain.get('name', 'none')}")
+    chip_data = recommendation.get("chips", {})
+    chip = chip_data.get("use_chip", chip_data.get("best_chip"))
+    chip_reason = chip_data.get("recommendation", {}).get("reason", "no chip recommendation was generated")
+    if chip:
+        lines.append(f"USE {chip} because {chip_reason}")
+    else:
+        lines.append(f"DO NOT USE ANY CHIP because {chip_reason}")
     return "\n".join(lines)

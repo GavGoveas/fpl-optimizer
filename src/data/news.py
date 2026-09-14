@@ -28,19 +28,26 @@ class News:
             )
         return entries
 
-    def summarize_with_gemini(self, items, max_items=20):
+    def summarize_with_gemini(self, items, max_items=20, model="gemini-2.0-flash"):
         if not self.gemini_api_key or not items:
             return items
         prompt = "Classify these football news items. Return concise JSON array with title, summary, category (injury, press_conference, other), player_names.\n" + str(items[:max_items])
         try:
             response = self.session.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
                 params={"key": self.gemini_api_key},
                 json={"contents": [{"parts": [{"text": prompt}]}]},
                 timeout=30,
             )
             response.raise_for_status()
-            return {"raw": response.json(), "source_items": items[:max_items]}
+            payload = response.json()
+            text = " ".join(
+                part.get("text", "")
+                for candidate in payload.get("candidates", [])
+                for part in candidate.get("content", {}).get("parts", [])
+            )
+            enriched = [dict(item, gemini_analysis=text) for item in items[:max_items]]
+            return {"raw": payload, "source_items": enriched}
         except requests.RequestException:
             return items
 

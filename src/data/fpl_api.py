@@ -64,3 +64,14 @@ class FPLAPI:
             used_free_transfers = min(transfers, available)
             available = min(5, available - used_free_transfers + 1)
         return available
+
+    @staticmethod
+    def remaining_free_transfers(history, gameweek):
+        available = 1
+        for event in sorted(history.get("current", []), key=lambda item: item.get("event", 0)):
+            transfers = int(event.get("event_transfers", 0))
+            available -= min(transfers, available)
+            if event.get("event") == gameweek:
+                return available
+            available = min(5, available + 1)
+        return available

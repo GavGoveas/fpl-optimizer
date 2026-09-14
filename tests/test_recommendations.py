@@ -12,15 +12,19 @@ def test_upcoming_free_transfers_reconstructs_banked_transfers():
     }
 
     assert FPLAPI.upcoming_free_transfers(history) == 3
+    assert FPLAPI.remaining_free_transfers(history, 3) == 2
 
 
 def test_message_labels_the_planned_gameweek():
     message = format_recommendation({
         "gameweek": 5,
+        "source_gameweek": 4,
+        "current_free_transfers": 1,
         "free_transfers": 2,
         "transfers": {"should_take_hits": False, "transfers": []},
         "chips": {"best_chip": None},
     })
 
     assert "FPL GW 5 plan" in message
+    assert "GW 4 unused free transfers: 1" in message
     assert "GW 5 starting free transfers: 2" in message
