@@ -1,0 +1,17 @@
+[tool]
+name = "fpl-optimizer"
+version = "0.1.0"
+description = "An automated FPL optimizer that provides transfer recommendations and game week strategies."
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+
+[dependencies]
+requests = "^2.26.0"
+flask = "^2.0.1"
+schedule = "^1.1.0"
+pandas = "^1.3.3"
+numpy = "^1.21.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
