@@ -31,6 +31,27 @@ def test_message_labels_the_planned_gameweek():
     assert "GW 5 starting free transfers: 2" in message
 
 
+def test_squad_chip_suppresses_incompatible_hit_list():
+    message = format_recommendation({
+        "gameweek": 5,
+        "source_gameweek": 4,
+        "current_free_transfers": 1,
+        "free_transfers": 1,
+        "transfers": {"should_take_hits": True, "transfers": [{"player_out": {"name": "Out"}, "player_in": {"name": "In"}, "gain": 8}]},
+        "captain": {"name": "Old captain"},
+        "vice_captain": {"name": "Old vice"},
+        "chips": {
+            "use_chip": "WC",
+            "recommendation": {"reason": "the wildcard squad improves the projection"},
+            "opportunities": {"WC": {"squad": {"players": [], "starting_xi": [], "bench": [], "captain": {"name": "New captain"}, "vice_captain": {"name": "New vice"}}}},
+        },
+    })
+
+    assert "USE WC; do not apply the separate hit list" in message
+    assert "Out -> In" not in message
+    assert "Captain: New captain" in message
+
+
 def test_blank_optional_environment_values_use_defaults(monkeypatch):
     monkeypatch.setenv("CHIP_MINIMUM_GAIN", "")
 

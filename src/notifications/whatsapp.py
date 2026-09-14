@@ -25,15 +25,22 @@ def format_recommendation(recommendation):
         f"GW {recommendation['source_gameweek']} unused free transfers: {recommendation['current_free_transfers']}",
         f"GW {recommendation['gameweek']} starting free transfers: {recommendation['free_transfers']}",
     ]
-    lines.append(f"Transfer strategy: {'TAKE HITS' if transfer['should_take_hits'] else 'NO HITS'}")
-    for item in transfer["transfers"]:
-        lines.append(f"- {item['player_out']['name']} -> {item['player_in']['name']} ({item['gain']:.1f} projected points)")
-    captain = recommendation.get("captain", {})
-    vice_captain = recommendation.get("vice_captain", {})
-    lines.append(f"Captain: {captain.get('name', 'none')}")
-    lines.append(f"Vice-captain: {vice_captain.get('name', 'none')}")
     chip_data = recommendation.get("chips", {})
     chip = chip_data.get("use_chip", chip_data.get("best_chip"))
+    chip_squad = chip_data.get("opportunities", {}).get(chip, {}).get("squad") if chip else None
+    if chip in {"FH", "WC"} and chip_squad:
+        lines.append(f"Transfer strategy: USE {chip}; do not apply the separate hit list")
+    else:
+        lines.append(f"Transfer strategy: {'TAKE HITS' if transfer['should_take_hits'] else 'NO HITS'}")
+        for item in transfer["transfers"]:
+            lines.append(f"- {item['player_out']['name']} -> {item['player_in']['name']} ({item['gain']:.1f} projected points)")
+    captain = recommendation.get("captain", {})
+    vice_captain = recommendation.get("vice_captain", {})
+    if chip_squad:
+        captain = chip_squad.get("captain") or captain
+        vice_captain = chip_squad.get("vice_captain") or vice_captain
+    lines.append(f"Captain: {captain.get('name', 'none')}")
+    lines.append(f"Vice-captain: {vice_captain.get('name', 'none')}")
     chip_reason = chip_data.get("recommendation", {}).get("reason", "no chip recommendation was generated")
     if chip:
         lines.append(f"USE {chip} because {chip_reason}")
