@@ -22,8 +22,7 @@ def format_recommendation(recommendation):
     transfer = recommendation["transfers"]
     lines = [
         f"FPL GW {recommendation['gameweek']} plan",
-        f"GW {recommendation['source_gameweek']} unused free transfers: {recommendation['current_free_transfers']}",
-        f"GW {recommendation['gameweek']} starting free transfers: {recommendation['free_transfers']}",
+        f"GW {recommendation['gameweek']} free transfers available: {recommendation['free_transfers']}",
     ]
     chip_data = recommendation.get("chips", {})
     chip = chip_data.get("use_chip", chip_data.get("best_chip"))

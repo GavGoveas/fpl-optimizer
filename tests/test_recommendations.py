@@ -54,8 +54,8 @@ def test_message_labels_the_planned_gameweek():
     })
 
     assert "FPL GW 5 plan" in message
-    assert "GW 4 unused free transfers: 1" in message
-    assert "GW 5 starting free transfers: 2" in message
+    assert "GW 4 unused free transfers" not in message
+    assert "GW 5 free transfers available: 2" in message
 
 
 def test_squad_chip_suppresses_incompatible_hit_list():
