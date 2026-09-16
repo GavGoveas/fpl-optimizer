@@ -1,6 +1,33 @@
 from src.data.fpl_api import FPLAPI
+from src.data.odds_api import OddsAPI
 from src.notifications.whatsapp import format_recommendation
 from src.config import Settings
+
+
+class _FakeSession:
+    def __init__(self, payloads):
+        self.payloads = payloads
+
+    def get(self, url, params=None, timeout=20):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+            def raise_for_status(self):
+                return None
+            def json(self):
+                return self.payload
+        if url.endswith("bootstrap-static/"):
+            return Response({"events": [{"id": 1, "is_current": False}, {"id": 5, "is_current": True}], "elements": [], "teams": []})
+        if url.endswith("entry/3193985/"):
+            return Response({"current_event": 5, "name": "Manager", "last_deadline_bank": 0, "last_deadline_value": 1000})
+        if url.endswith("entry/3193985/history/"):
+            return Response({"current": [{"event": 1, "event_transfers": 0}, {"event": 2, "event_transfers": 1}, {"event": 3, "event_transfers": 0}, {"event": 4, "event_transfers": 2}]})
+        if url.endswith("fixtures/"):
+            return Response([
+                {"event": 5, "team_h": 1, "team_a": 2, "team_h_difficulty": 3, "team_a_difficulty": 2},
+                {"event": 6, "team_h": 3, "team_a": 4, "team_h_difficulty": 4, "team_a_difficulty": 2},
+            ])
+        raise AssertionError(f"Unexpected call: {url}")
 
 
 def test_upcoming_free_transfers_reconstructs_banked_transfers():

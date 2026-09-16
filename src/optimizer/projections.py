@@ -90,6 +90,10 @@ class ProjectionEngine:
         return f"{item.get('title', '')} {item.get('summary', '')} {item.get('gemini_analysis', '')}".lower()
 
     @staticmethod
+    def _normalize_name(value):
+        return "".join(ch for ch in (value or "").lower() if ch.isalnum())
+
+    @staticmethod
     def _fbref_multiplier(name, stats):
         values = stats.get(name, {})
         attacking = sum(float(values.get(key, 0) or 0) for key in ("xG", "xAG", "Gls", "Ast"))
@@ -97,19 +101,30 @@ class ProjectionEngine:
 
     @staticmethod
     def _odds_multiplier(player, odds):
-        team_name = player.get("team_name", "").lower()
-        for match in odds:
-            if team_name not in {str(match.get("home_team", "")).lower(), str(match.get("away_team", "")).lower()}:
+        if not odds:
+            return 1.0
+        player_name = ProjectionEngine._normalize_name(player.get("name") or player.get("first_name"))
+        for item in odds:
+            if not isinstance(item, dict):
                 continue
-            home = str(match.get("home_team", "")).lower() == team_name
+            if "player" in item:
+                item_name = ProjectionEngine._normalize_name(item.get("player"))
+                if item_name and item_name == player_name:
+                    probability = float(item.get("probability", 0.5) or 0.5)
+                    return max(0.85, min(1.2, 0.9 + (probability - 0.5) * 0.7))
+            team_name = str(player.get("team_name") or "").lower()
+            if team_name not in {str(item.get("home_team", "")).lower(), str(item.get("away_team", "")).lower()}:
+                continue
+            home = str(item.get("home_team", "")).lower() == team_name
             probability = 0.5
-            for bookmaker in match.get("bookmakers", []):
+            for bookmaker in item.get("bookmakers", []):
                 for market in bookmaker.get("markets", []):
                     if market.get("key") != "h2h":
                         continue
-                    outcome = next((item for item in market.get("outcomes", []) if item.get("name") == match.get("home_team" if home else "away_team")), None)
+                    outcome_name = item.get("home_team" if home else "away_team")
+                    outcome = next((entry for entry in market.get("outcomes", []) if entry.get("name") == outcome_name), None)
                     if outcome and outcome.get("price"):
-                        probability = 1 / float(outcome["price"])
+                        probability = 1.0 / float(outcome["price"])
                         break
             return max(0.85, min(1.15, 0.85 + probability * 0.3))
         return 1.0

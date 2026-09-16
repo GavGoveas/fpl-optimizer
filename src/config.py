@@ -16,7 +16,7 @@ class Settings:
     fpl_api_url: str = _env("FPL_API_URL", "https://fantasy.premierleague.com/api/")
     odds_api_key: str = _env("ODDS_API_KEY")
     gemini_api_key: str = _env("GEMINI_API_KEY")
-    gemini_model: str = _env("GEMINI_MODEL", "gemini-2.0-flash")
+    gemini_model: str = _env("GEMINI_MODEL", "gemini-3.6-flash")
     odds_api_url: str = _env("ODDS_API_URL", "https://api.the-odds-api.com/v4")
     soccerdata_api_key: str = _env("SOCCERDATA_API_KEY")
     soccerdata_url: str = _env("SOCCERDATA_URL", "https://api.soccerdata.com/v1")

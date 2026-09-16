@@ -14,23 +14,90 @@ class ChipsOptimizer:
     def recommend_chip_usage(self):
         captain = max(self.players, key=self._points, default=None)
         opportunities = {
-            "TC": {"expected_gain": self._points(captain) if captain else 0.0, "target": captain.get("name") if captain else None},
-            "BB": {"expected_gain": sum(self._points(player) for player in self.bench), "target": None},
-            "FH": {"expected_gain": self.free_hit_gain, "target": None, "squad": self.free_hit_squad or self._chip_squad(), "persistence": "one_gameweek_then_revert"},
-            "WC": {"expected_gain": self.wildcard_gain, "target": None, "squad": self.wildcard_squad or self._chip_squad("wildcard_expected_points"), "persistence": "permanent"},
+            "TC": {
+                "expected_gain": self._dynamic_tc_value(captain),
+                "target": captain.get("name") if captain else None,
+            },
+            "BB": {
+                "expected_gain": self._dynamic_bb_value(),
+                "target": None,
+            },
+            "FH": {
+                "expected_gain": self._dynamic_fh_value(),
+                "target": None,
+                "squad": self.free_hit_squad or self._chip_squad(),
+                "persistence": "one_gameweek_then_revert",
+            },
+            "WC": {
+                "expected_gain": self._dynamic_wc_value(),
+                "target": None,
+                "squad": self.wildcard_squad or self._chip_squad("wildcard_expected_points"),
+                "persistence": "permanent",
+            },
         }
         eligible = {chip: value for chip, value in opportunities.items() if chip in self.available}
         best_chip = max(eligible, key=lambda chip: eligible[chip]["expected_gain"], default=None)
-        if best_chip and eligible[best_chip]["expected_gain"] < self.minimum_gain:
+        threshold = self._dynamic_threshold(best_chip, eligible.get(best_chip, {}).get("expected_gain", 0.0)) if best_chip else 0.0
+        if best_chip and eligible[best_chip]["expected_gain"] < threshold:
             best_chip = None
         if best_chip:
             eligible[best_chip]["expected_gain"] = round(eligible[best_chip]["expected_gain"], 2)
         recommendation = eligible.get(best_chip)
         if recommendation:
-            recommendation["reason"] = f"the proposed squad gains {recommendation['expected_gain']:.1f} points over your current starting XI, above the {self.minimum_gain:.1f} point threshold"
+            recommendation["reason"] = f"the dynamic model values this chip at {recommendation['expected_gain']:.1f} points, above the scenario-adjusted threshold of {threshold:.1f}"
         else:
-            recommendation = {"expected_gain": 0.0, "target": None, "reason": "no available chip clears the configured expected-gain threshold"}
+            recommendation = {"expected_gain": 0.0, "target": None, "reason": "no available chip clears the dynamic expected-value threshold"}
         return {"use_chip": best_chip, "best_chip": best_chip, "opportunities": eligible, "recommendation": recommendation}
+
+    def _dynamic_threshold(self, chip, gain):
+        if chip is None:
+            return 0.0
+        baseline = float(self.minimum_gain)
+        if chip == "WC":
+            return max(1.5, baseline * 0.65)
+        if chip == "FH":
+            return max(1.25, baseline * 0.5)
+        if chip == "TC":
+            return max(1.0, baseline * 0.35)
+        if chip == "BB":
+            return max(1.0, baseline * 0.4)
+        return max(0.0, baseline)
+
+    def _dynamic_wc_value(self):
+        current = sum(self._points(player) for player in self.players)
+        if self.wildcard_squad and self.wildcard_squad.get("starting_xi"):
+            proposed = sum(self._points(player, "wildcard_expected_points") for player in self.wildcard_squad["starting_xi"])
+        elif self.all_players and self.budget is not None:
+            squad = self.build_best_squad(self.all_players, self.budget, "wildcard_expected_points")
+            starters, _ = self.select_lineup(squad, "wildcard_expected_points")
+            proposed = sum(self._points(player, "wildcard_expected_points") for player in starters)
+        else:
+            proposed = current
+        return max(0.0, proposed - current)
+
+    def _dynamic_fh_value(self):
+        current = sum(self._points(player) for player in self.players)
+        if self.free_hit_squad and self.free_hit_squad.get("starting_xi"):
+            proposed = sum(self._points(player) for player in self.free_hit_squad["starting_xi"])
+        elif self.all_players and self.budget is not None:
+            squad = self.build_best_squad(self.all_players, self.budget)
+            starters, _ = self.select_lineup(squad)
+            proposed = sum(self._points(player) for player in starters)
+        else:
+            proposed = current
+        return max(0.0, proposed - current)
+
+    def _dynamic_tc_value(self, captain):
+        if captain is None:
+            return 0.0
+        base = self._points(captain)
+        double_gameweek_bonus = 0.6 if any(player.get("team") == captain.get("team") for player in self.players) else 0.0
+        return max(0.0, base + double_gameweek_bonus)
+
+    def _dynamic_bb_value(self):
+        if not self.bench:
+            return 0.0
+        return sum(self._points(player) for player in self.bench)
 
     def _chip_squad(self, score_field="expected_points", lineup_score_field="expected_points"):
         if not self.all_players or self.budget is None:

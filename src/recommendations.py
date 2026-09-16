@@ -35,11 +35,11 @@ class RecommendationService:
         classified_news = self.news.summarize_with_gemini(news_items, model=settings.gemini_model)
         if isinstance(classified_news, dict):
             news_items = classified_news["source_items"]
-        enrichment = self._fetch_enrichment()
+        enrichment = self._fetch_enrichment(gameweek)
         team_names = {team["id"]: team["name"] for team in bootstrap.get("teams", [])}
         elements = [dict(player, team_name=team_names.get(player.get("team"), "")) for player in bootstrap["elements"]]
         projected = self.projection_engine.project(
-            elements, self.fpl.get_fixtures(), gameweek, news_items,
+            elements, self.fpl.get_current_gameweek_fixtures(gameweek), gameweek, news_items,
             enrichment["fbref"], enrichment["odds"],
             wildcard_horizon=settings.wildcard_horizon,
         )
@@ -97,17 +97,25 @@ class RecommendationService:
             "source_errors": enrichment["errors"],
         }
 
-    def _fetch_enrichment(self):
+    def _fetch_enrichment(self, gameweek=None):
         values = {"fbref": {}, "odds": [], "available_sources": [], "errors": {}}
-        providers = (("FBRef", self.fbref, "fetch_player_stats"), ("Odds API", self.odds, "get_market_data"))
+        fixtures = self.fpl.get_current_gameweek_fixtures(gameweek) if gameweek is not None else self.fpl.get_fixtures()
+        providers = (("FBRef", self.fbref, "fetch_player_stats"),)
         if settings.soccerdata_api_key:
             providers += (("Soccerdata", self.soccerdata, "get_injury_updates"),)
+        providers += (("Odds API", self.odds, "get_player_goal_scorer_market"),)
         for name, provider, method_name in providers:
             try:
-                result = getattr(provider, method_name)()
-                key = "fbref" if name == "FBRef" else "odds" if name == "Odds API" else None
-                if key:
-                    values[key] = result or values[key]
+                if name == "Odds API":
+                    result = provider.get_player_goal_scorer_market(sport="soccer_epl", region="uk", fpl_fixtures=fixtures)
+                elif name == "Soccerdata":
+                    result = provider.get_injury_updates()
+                else:
+                    result = getattr(provider, method_name)()
+                if name == "FBRef":
+                    values["fbref"] = result or values["fbref"]
+                elif name == "Odds API":
+                    values["odds"] = result or values["odds"]
                 values["available_sources"].append(name)
             except Exception as error:
                 values["errors"][name] = str(error)

@@ -45,7 +45,18 @@ class FPLAPI:
     def get_current_gameweek(self):
         events = self.get_bootstrap().get("events", [])
         current = next((event for event in events if event.get("is_current")), None)
+        if current is None:
+            current = next((event for event in events if event.get("is_next") or event.get("is_previous")), None)
         return current["id"] if current else None
+
+    def get_current_gameweek_fixtures(self, gameweek: int | None = None):
+        gw = gameweek if gameweek is not None else self.get_current_gameweek()
+        if gw is None:
+            return []
+        fixtures = self._get("fixtures/", event=gw)
+        if isinstance(fixtures, list):
+            return fixtures
+        return fixtures.get("fixtures", [])
 
     def get_manager_picks(self, manager_id: int, gameweek: int):
         return self._get(f"entry/{manager_id}/event/{gameweek}/picks/")
@@ -56,11 +67,19 @@ class FPLAPI:
     def get_manager(self, manager_id: int):
         return self._get(f"entry/{manager_id}/")
 
+    def get_manager_free_transfers(self, manager_id: int, gameweek: int | None = None):
+        entry = self.get_manager(manager_id)
+        history = self.get_manager_history(manager_id)
+        target_gameweek = gameweek if gameweek is not None else entry.get("current_event") or self.get_current_gameweek()
+        if target_gameweek is None:
+            return 1
+        return self.remaining_free_transfers(history, target_gameweek)
+
     @staticmethod
     def upcoming_free_transfers(history):
         available = 1
         for event in sorted(history.get("current", []), key=lambda item: item.get("event", 0)):
-            transfers = int(event.get("event_transfers", 0))
+            transfers = int(event.get("event_transfers", 0) or 0)
             used_free_transfers = min(transfers, available)
             available = min(5, available - used_free_transfers + 1)
         return available
@@ -69,9 +88,10 @@ class FPLAPI:
     def remaining_free_transfers(history, gameweek):
         available = 1
         for event in sorted(history.get("current", []), key=lambda item: item.get("event", 0)):
-            transfers = int(event.get("event_transfers", 0))
-            available -= min(transfers, available)
+            transfers = int(event.get("event_transfers", 0) or 0)
+            used = min(transfers, available)
+            available -= used
             if event.get("event") == gameweek:
-                return available
+                return max(0, available)
             available = min(5, available + 1)
-        return available
+        return max(0, available)

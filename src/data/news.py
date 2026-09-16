@@ -28,7 +28,7 @@ class News:
             )
         return entries
 
-    def summarize_with_gemini(self, items, max_items=20, model="gemini-2.0-flash"):
+    def summarize_with_gemini(self, items, max_items=20, model="gemini-3.6-flash"):
         if not self.gemini_api_key or not items:
             return items
         prompt = "Classify these football news items. Return concise JSON array with title, summary, category (injury, press_conference, other), player_names.\n" + str(items[:max_items])
