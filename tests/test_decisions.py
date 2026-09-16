@@ -42,6 +42,16 @@ def test_chip_optimizer_respects_no_available_chips():
     assert result["use_chip"] is None
 
 
+def test_chip_optimizer_caps_absurd_wildcard_gain():
+    players = [{"name": "Captain", "expected_points": 8}]
+    optimizer = ChipsOptimizer(players, available={"WC"})
+    optimizer.wildcard_squad = {"starting_xi": [{"name": "Wildcard star", "expected_points": 500, "wildcard_expected_points": 500}]}
+
+    result = optimizer.recommend_chip_usage()
+
+    assert result["use_chip"] is None
+
+
 def test_squad_chips_include_full_legal_squad_and_lineup():
     players = []
     team_id = 0

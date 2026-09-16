@@ -69,11 +69,23 @@ class ChipsOptimizer:
             proposed = sum(self._points(player, "wildcard_expected_points") for player in self.wildcard_squad["starting_xi"])
         elif self.all_players and self.budget is not None:
             squad = self.build_best_squad(self.all_players, self.budget, "wildcard_expected_points")
-            starters, _ = self.select_lineup(squad, "wildcard_expected_points")
-            proposed = sum(self._points(player, "wildcard_expected_points") for player in starters)
+            if squad:
+                starters, _ = self.select_lineup(squad, "wildcard_expected_points")
+                proposed = sum(self._points(player, "wildcard_expected_points") for player in starters)
+            else:
+                proposed = current
         else:
             proposed = current
-        return max(0.0, proposed - current)
+        delta = max(0.0, proposed - current)
+        if delta <= 0:
+            return 0.0
+        relative_gain = delta / max(1.0, current)
+        if relative_gain > 3.5:
+            return 0.0
+        transfer_hit_savings = 4.0
+        time_decay_value = 2.0
+        dynamic_value = delta * 0.18 + transfer_hit_savings + time_decay_value
+        return round(min(dynamic_value, 18.0), 2)
 
     def _dynamic_fh_value(self):
         current = sum(self._points(player) for player in self.players)
@@ -81,23 +93,33 @@ class ChipsOptimizer:
             proposed = sum(self._points(player) for player in self.free_hit_squad["starting_xi"])
         elif self.all_players and self.budget is not None:
             squad = self.build_best_squad(self.all_players, self.budget)
-            starters, _ = self.select_lineup(squad)
-            proposed = sum(self._points(player) for player in starters)
+            if squad:
+                starters, _ = self.select_lineup(squad)
+                proposed = sum(self._points(player) for player in starters)
+            else:
+                proposed = current
         else:
             proposed = current
-        return max(0.0, proposed - current)
+        delta = max(0.0, proposed - current)
+        if delta <= 0:
+            return 0.0
+        relative_gain = delta / max(1.0, current)
+        if relative_gain > 2.0:
+            return 0.0
+        return round(min(delta * 0.22 + 2.0, 14.0), 2)
 
     def _dynamic_tc_value(self, captain):
         if captain is None:
             return 0.0
         base = self._points(captain)
         double_gameweek_bonus = 0.6 if any(player.get("team") == captain.get("team") for player in self.players) else 0.0
-        return max(0.0, base + double_gameweek_bonus)
+        return round(max(0.0, base + double_gameweek_bonus), 2)
 
     def _dynamic_bb_value(self):
         if not self.bench:
             return 0.0
-        return sum(self._points(player) for player in self.bench)
+        value = sum(self._points(player) for player in self.bench)
+        return round(min(value, 12.0), 2)
 
     def _chip_squad(self, score_field="expected_points", lineup_score_field="expected_points"):
         if not self.all_players or self.budget is None:
