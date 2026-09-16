@@ -15,6 +15,16 @@ def test_projection_uses_fixture_difficulty_and_injury_status():
     assert result[1]["availability"] == 0.0
 
 
+def test_projection_consumes_structured_news_status_and_minutes():
+    player = {"id": 1, "first_name": "Fit", "second_name": "Player", "team": 1, "ep_next": "6.0", "status": "a"}
+    news = [{"gemini_analysis": {"player_names": ["Fit Player"], "status": "doubtful", "minutes_probability": 0.4}}]
+
+    result = ProjectionEngine().project([player], [], gameweek=4, news=news)[0]
+
+    assert result["availability"] == 0.5
+    assert result["expected_minutes"] == 36.0
+
+
 def test_projection_uses_fbref_and_market_odds():
     player = {"id": 1, "first_name": "Fit", "second_name": "Player", "team": 1, "team_name": "Team A", "ep_next": "6.0", "status": "a"}
     fixtures = [{"event": 5, "team_h": 1, "team_h_difficulty": 3, "team_a": 2, "team_a_difficulty": 3}]

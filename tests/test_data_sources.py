@@ -54,3 +54,25 @@ def test_news_filters_injuries_and_press_conferences():
 
     assert len(news.get_injury_updates(items)) == 1
     assert len(news.get_press_conference_info(items)) == 1
+
+
+def test_news_keeps_full_feed_and_structured_gemini_analysis():
+    news = News(gemini_api_key="key")
+    items = [{"title": f"Item {index}", "summary": "Update"} for index in range(21)]
+
+    class GeminiResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"candidates": [{"content": {"parts": [{"text": '{"analyses": [' + ",".join('{\"title\": \"ok\"}' for _ in items) + ']}'}]}}]}
+
+    class GeminiSession:
+        def post(self, *args, **kwargs):
+            return GeminiResponse()
+
+    news.session = GeminiSession()
+    result = news.summarize_with_gemini(items)
+
+    assert len(result["source_items"]) == 21
+    assert result["source_items"][0]["gemini_analysis"]["title"] == "ok"

@@ -37,8 +37,8 @@ class ChipsOptimizer:
         }
         eligible = {chip: value for chip, value in opportunities.items() if chip in self.available}
         best_chip = max(eligible, key=lambda chip: eligible[chip]["expected_gain"], default=None)
-        threshold = self._dynamic_threshold(best_chip, eligible.get(best_chip, {}).get("expected_gain", 0.0)) if best_chip else 0.0
-        if best_chip and eligible[best_chip]["expected_gain"] < threshold:
+        threshold = self._dynamic_threshold(best_chip, eligible) if best_chip else 0.0
+        if best_chip and (eligible[best_chip]["expected_gain"] <= 0 or eligible[best_chip]["expected_gain"] <= threshold):
             best_chip = None
         if best_chip:
             eligible[best_chip]["expected_gain"] = round(eligible[best_chip]["expected_gain"], 2)
@@ -49,19 +49,15 @@ class ChipsOptimizer:
             recommendation = {"expected_gain": 0.0, "target": None, "reason": "no available chip clears the dynamic expected-value threshold"}
         return {"use_chip": best_chip, "best_chip": best_chip, "opportunities": eligible, "recommendation": recommendation}
 
-    def _dynamic_threshold(self, chip, gain):
+    def _dynamic_threshold(self, chip, opportunities):
         if chip is None:
             return 0.0
-        baseline = float(self.minimum_gain)
-        if chip == "WC":
-            return max(1.5, baseline * 0.65)
-        if chip == "FH":
-            return max(1.25, baseline * 0.5)
-        if chip == "TC":
-            return max(1.0, baseline * 0.35)
-        if chip == "BB":
-            return max(1.0, baseline * 0.4)
-        return max(0.0, baseline)
+        alternatives = [
+            float(value.get("expected_gain", 0.0))
+            for name, value in opportunities.items()
+            if name != chip
+        ]
+        return round(max(alternatives, default=0.0), 2)
 
     def _dynamic_wc_value(self):
         current = sum(self._points(player) for player in self.players)
@@ -112,8 +108,9 @@ class ChipsOptimizer:
         if captain is None:
             return 0.0
         base = self._points(captain)
-        double_gameweek_bonus = 0.6 if any(player.get("team") == captain.get("team") for player in self.players) else 0.0
-        return round(max(0.0, base + double_gameweek_bonus), 2)
+        extra_fixture_points = float(captain.get("double_gameweek_expected_points", 0) or 0)
+        availability = max(0.0, min(1.0, float(captain.get("availability", 1) or 0)))
+        return round(max(0.0, base * availability + extra_fixture_points), 2)
 
     def _dynamic_bb_value(self):
         if not self.bench:

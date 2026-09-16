@@ -2,15 +2,16 @@ class ProjectionEngine:
     def project(self, players, fixtures=None, gameweek=None, news=None, fbref_stats=None, odds=None, wildcard_horizon=3):
         fixture_map = self._fixture_map(fixtures or [], gameweek)
         horizon_maps = self._fixture_maps(fixtures or [], gameweek, wildcard_horizon)
-        news_text = " ".join(self._news_text(item) for item in (news or []))
+        news_items = list(news or [])
+        news_text = " ".join(self._news_text(item) for item in news_items)
         projections = []
         for player in players:
             name = f"{player.get('first_name', '')} {player.get('second_name', '')}".strip()
             base = float(player.get("ep_next") or player.get("form") or 0)
             difficulty = fixture_map.get(player.get("team"), 3.0)
             multiplier = max(0.65, min(1.25, 1.15 - (difficulty - 1) * 0.125))
-            availability = self._availability(player, name, news_text)
-            minutes_probability = self._minutes_probability(player)
+            availability = self._availability(player, name, news_items, news_text)
+            minutes_probability = self._minutes_probability(player, name, news_items)
             base *= self._fbref_multiplier(name, fbref_stats or {})
             base *= self._odds_multiplier(player, odds or [])
             horizon_points = 0.0
@@ -63,21 +64,47 @@ class ProjectionEngine:
         return {team: [sum(values_by_event[event]) / len(values_by_event[event]) for event in sorted(values_by_event)] for team, values_by_event in values.items()}
 
     @staticmethod
-    def _availability(player, name, news_text):
+    def _availability(player, name, news_items, news_text):
         if player.get("status", "a") in {"i", "s", "u"}:
             return 0.0
         chance = player.get("chance_of_playing_next_round")
         if chance is not None and chance <= 25:
             return 0.0
+        normalized_name = ProjectionEngine._normalize_name(name)
+        for item in news_items:
+            analysis = item.get("gemini_analysis")
+            if not isinstance(analysis, dict):
+                continue
+            names = [ProjectionEngine._normalize_name(value) for value in analysis.get("player_names", [])]
+            if normalized_name not in names:
+                continue
+            status = str(analysis.get("status", "unknown")).lower()
+            if status in {"injured", "suspended", "ruled_out"}:
+                return 0.0
+            if status == "doubtful":
+                return 0.5
+            if status in {"available", "expected_to_start"}:
+                return 1.0
         if name and name.lower() in news_text and chance is None:
             return 0.75
         return 1.0
 
     @staticmethod
-    def _minutes_probability(player):
+    def _minutes_probability(player, name, news_items):
         chance = player.get("chance_of_playing_next_round")
         if chance is not None:
             return max(0.0, min(1.0, float(chance) / 100))
+        normalized_name = ProjectionEngine._normalize_name(name)
+        for item in news_items:
+            analysis = item.get("gemini_analysis")
+            if not isinstance(analysis, dict):
+                continue
+            names = [ProjectionEngine._normalize_name(value) for value in analysis.get("player_names", [])]
+            if normalized_name in names and analysis.get("minutes_probability") is not None:
+                try:
+                    return max(0.0, min(1.0, float(analysis["minutes_probability"])))
+                except (TypeError, ValueError):
+                    continue
         minutes = float(player.get("minutes", 0) or 0)
         starts = float(player.get("starts", 0) or 0)
         if minutes <= 0:
@@ -87,7 +114,7 @@ class ProjectionEngine:
 
     @staticmethod
     def _news_text(item):
-        return f"{item.get('title', '')} {item.get('summary', '')} {item.get('gemini_analysis', '')}".lower()
+        return f"{item.get('title', '')} {item.get('summary', '')} {item.get('content', '')} {item.get('gemini_analysis', '')}".lower()
 
     @staticmethod
     def _normalize_name(value):
