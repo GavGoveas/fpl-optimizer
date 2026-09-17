@@ -41,7 +41,7 @@ def job():
     recommendations = get_recommendations()
     # Here you would implement the logic to send notifications or update the dashboard
 
-schedule.every().friday.at("19:00").do(job)
+schedule.every().friday.at("21:00").do(job)
 
 if __name__ == '__main__':
     while True:

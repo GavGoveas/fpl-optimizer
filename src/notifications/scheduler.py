@@ -5,7 +5,7 @@ from src.config import settings
 
 
 class FridayScheduler:
-    """Run a callback once when Friday 19:00 is reached in the configured zone."""
+    """Run a callback once when Friday 21:00 is reached in the configured zone."""
 
     def __init__(self, job, timezone=settings.timezone, day=settings.notification_day, time=settings.notification_time):
         self.job = job

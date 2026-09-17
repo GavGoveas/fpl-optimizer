@@ -30,7 +30,7 @@ class Settings:
     manager_id: int | None = int(_env("FPL_MANAGER_ID")) if _env("FPL_MANAGER_ID") else None
     free_transfers_override: int | None = int(_env("FPL_FREE_TRANSFERS")) if _env("FPL_FREE_TRANSFERS") else None
     notification_day: str = _env("NOTIFICATION_DAY", "Friday")
-    notification_time: str = _env("NOTIFICATION_TIME", "19:00")
+    notification_time: str = _env("NOTIFICATION_TIME", "21:00")
     timezone: str = _env("TIMEZONE", "Asia/Kolkata")
     chip_minimum_gain: float = float(_env("CHIP_MINIMUM_GAIN", "4"))
     wildcard_horizon: int = int(_env("WILDCARD_HORIZON", "10"))
