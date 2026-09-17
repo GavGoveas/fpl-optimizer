@@ -134,6 +134,29 @@ def test_validation_rejects_inconsistent_transfer_lineup():
     assert any("lineup" in error for error in result["errors"])
 
 
+def test_validation_accepts_available_bench_boost_players():
+    starting = [{"id": index, "position": "MID", "availability": 1.0} for index in range(11)]
+    bench = [
+        {"id": 11, "position": "GKP", "availability": 1.0, "minutes_probability": 0.8},
+        {"id": 12, "position": "MID", "availability": 1.0, "minutes_probability": 0.8},
+        {"id": 13, "position": "FWD", "availability": 1.0, "minutes_probability": 0.8},
+        {"id": 14, "position": "DEF", "availability": 1.0, "minutes_probability": 0.8},
+    ]
+    captain = starting[0]
+    recommendation = {
+        "starting_xi": starting,
+        "bench": bench,
+        "captain": captain,
+        "vice_captain": starting[1],
+        "transfers": {"transfers": []},
+        "chips": {"use_chip": "BB"},
+    }
+
+    result = RecommendationService.validate_recommendation(recommendation, [{"event": 5}], {"events": []})
+
+    assert result["valid"] is True
+
+
 def test_blank_optional_environment_values_use_defaults(monkeypatch):
     monkeypatch.setenv("CHIP_MINIMUM_GAIN", "")
 
