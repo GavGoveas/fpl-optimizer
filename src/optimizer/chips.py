@@ -116,7 +116,7 @@ class ChipsOptimizer:
         if not self.bench:
             return 0.0
         value = sum(self._points(player) for player in self.bench)
-        return round(min(value, 12.0), 2)
+        return round(max(0.0, value), 2)
 
     def _chip_squad(self, score_field="expected_points", lineup_score_field="expected_points"):
         if not self.all_players or self.budget is None:
@@ -193,7 +193,10 @@ class ChipsOptimizer:
         starters = best[1] if best else []
         remaining = [player for player in squad if player not in starters]
         starters.extend(sorted(remaining, key=lambda player: cls._points(player, score_field), reverse=True)[:11 - len(starters)])
-        bench = sorted((player for player in squad if player not in starters), key=lambda player: cls._points(player, score_field), reverse=True)
+        bench = sorted(
+            (player for player in squad if player not in starters),
+            key=lambda player: (player.get("position") == "GKP", -cls._points(player, score_field)),
+        )
         return starters, bench
 
     @staticmethod

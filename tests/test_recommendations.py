@@ -96,6 +96,12 @@ def test_transfer_plan_is_applied_before_lineup_selection():
     assert [player["name"] for player in updated] == ["In", "Keep"]
 
 
+def test_captain_score_uses_distribution_when_available():
+    player = {"expected_points": 7, "distribution": {"mean": 9}}
+
+    assert RecommendationService._captain_score(player) == 8
+
+
 def test_blank_optional_environment_values_use_defaults(monkeypatch):
     monkeypatch.setenv("CHIP_MINIMUM_GAIN", "")
 

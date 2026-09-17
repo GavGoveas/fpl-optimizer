@@ -83,9 +83,9 @@ class RecommendationService:
         if selected_chip in {"FH", "WC"} and selected_chip_squad:
             starting = selected_chip_squad["starting_xi"]
             bench = selected_chip_squad["bench"]
-        captain = max(starting, key=lambda player: player["expected_points"], default=None)
+        captain = max(starting, key=self._captain_score, default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]
-        vice_captain = max(vice_candidates, key=lambda player: player["expected_points"], default=None)
+        vice_captain = max(vice_candidates, key=self._captain_score, default=None)
         return {
             "manager_id": manager_id,
             "gameweek": gameweek + 1,
@@ -115,6 +115,14 @@ class RecommendationService:
             if outgoing_index is not None and not any(player.get("id") == incoming.get("id") for player in updated):
                 updated[outgoing_index] = incoming
         return updated
+
+    @staticmethod
+    def _captain_score(player):
+        distribution = player.get("distribution") or {}
+        distribution_mean = distribution.get("mean")
+        if distribution_mean is None:
+            return float(player.get("expected_points", 0) or 0)
+        return (float(player.get("expected_points", 0) or 0) + float(distribution_mean)) / 2
 
     def _fetch_enrichment(self, gameweek=None):
         values = {"fbref": {}, "odds": [], "available_sources": [], "errors": {}}
