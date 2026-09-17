@@ -125,8 +125,8 @@ class ChipsOptimizer:
         if len(squad) != 15:
             return None
         starters, bench = self.select_lineup(squad, lineup_score_field)
-        captain = max(starters, key=lambda player: self._points(player, "expected_points"), default=None)
-        vice = max((player for player in starters if player != captain), key=lambda player: self._points(player, "expected_points"), default=None)
+        captain = max(starters, key=self.captain_score, default=None)
+        vice = max((player for player in starters if player != captain), key=self.captain_score, default=None)
         return {"players": squad, "starting_xi": starters, "bench": bench, "captain": captain, "vice_captain": vice}
 
     def build_chip_squad(self, score_field="expected_points"):
@@ -202,6 +202,15 @@ class ChipsOptimizer:
     @staticmethod
     def _points(player, score_field="expected_points"):
         return float(player.get(score_field, 0))
+
+    @staticmethod
+    def captain_score(player):
+        distribution = player.get("distribution") or {}
+        distribution_mean = distribution.get("mean")
+        projected = float(player.get("expected_points", 0) or 0)
+        if distribution_mean is None:
+            return projected
+        return (projected + float(distribution_mean)) / 2
 
 
 Chips = ChipsOptimizer

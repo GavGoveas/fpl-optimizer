@@ -58,6 +58,11 @@ def test_bench_boost_uses_full_dynamic_bench_value():
     assert result["opportunities"]["BB"]["expected_gain"] == 15
 
 
+def test_chip_squad_uses_distribution_aware_captain():
+    player = {"id": 1, "position": "MID", "expected_points": 7, "distribution": {"mean": 9}}
+    assert ChipsOptimizer.captain_score(player) == 8
+
+
 def test_chip_optimizer_respects_no_available_chips():
     result = ChipsOptimizer([{"name": "Captain", "expected_points": 8}], available=set()).recommend_chip_usage()
 

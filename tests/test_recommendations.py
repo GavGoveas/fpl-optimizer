@@ -102,6 +102,21 @@ def test_captain_score_uses_distribution_when_available():
     assert RecommendationService._captain_score(player) == 8
 
 
+def test_message_includes_captain_candidates():
+    message = format_recommendation({
+        "gameweek": 5,
+        "free_transfers": 1,
+        "transfers": {"should_take_hits": False, "transfers": []},
+        "starting_xi": [],
+        "bench": [],
+        "captain": {"name": "Saka"},
+        "vice_captain": {"name": "Palmer"},
+        "captain_candidates": [{"name": "Saka", "captain_score": 8.4}],
+        "chips": {"best_chip": None},
+    })
+    assert "Captain candidates: Saka (8.4)" in message
+
+
 def test_blank_optional_environment_values_use_defaults(monkeypatch):
     monkeypatch.setenv("CHIP_MINIMUM_GAIN", "")
 

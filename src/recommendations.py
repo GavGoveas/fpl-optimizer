@@ -86,6 +86,18 @@ class RecommendationService:
         captain = max(starting, key=self._captain_score, default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]
         vice_captain = max(vice_candidates, key=self._captain_score, default=None)
+        captain_candidates = [
+            {
+                "name": player["name"],
+                "position": player["position"],
+                "captain_score": round(self._captain_score(player), 2),
+                "expected_points": player.get("expected_points", 0),
+                "expected_minutes": player.get("expected_minutes", 0),
+                "fixture_difficulty": player.get("fixture_difficulty"),
+                "clean_sheet_probability": player.get("clean_sheet_probability"),
+            }
+            for player in sorted(starting, key=self._captain_score, reverse=True)
+        ]
         return {
             "manager_id": manager_id,
             "gameweek": gameweek + 1,
@@ -99,6 +111,7 @@ class RecommendationService:
             "bench": bench,
             "captain": captain,
             "vice_captain": vice_captain,
+            "captain_candidates": captain_candidates,
             "sources": ["FPL API", "RSS news"] + enrichment["available_sources"],
             "source_errors": enrichment["errors"],
         }
