@@ -2,6 +2,7 @@ from src.data.fpl_api import FPLAPI
 from src.data.odds_api import OddsAPI
 from src.notifications.whatsapp import format_recommendation
 from src.config import Settings
+from src.recommendations import RecommendationService
 
 
 class _FakeSession:
@@ -81,6 +82,18 @@ def test_squad_chip_suppresses_incompatible_hit_list():
     assert "USE WC; do not apply the separate hit list" in message
     assert "Out -> In" not in message
     assert "Captain: New captain" in message
+
+
+def test_transfer_plan_is_applied_before_lineup_selection():
+    squad = [
+        {"id": 1, "name": "Out", "position": "MID", "expected_points": 2},
+        {"id": 2, "name": "Keep", "position": "MID", "expected_points": 6},
+    ]
+    transfers = [{"player_out": squad[0], "player_in": {"id": 3, "name": "In", "position": "MID", "expected_points": 8}}]
+
+    updated = RecommendationService._apply_transfers(squad, transfers)
+
+    assert [player["name"] for player in updated] == ["In", "Keep"]
 
 
 def test_blank_optional_environment_values_use_defaults(monkeypatch):

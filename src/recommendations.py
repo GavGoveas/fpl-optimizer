@@ -57,7 +57,8 @@ class RecommendationService:
             bank=manager.get("last_deadline_bank", manager.get("bank", 0)) / 10,
             free_transfers=free_transfers,
         ).analyze_transfer_hits()
-        starting, bench = ChipsOptimizer.select_lineup(squad)
+        transfer_squad = self._apply_transfers(squad, transfer_analysis["transfers"])
+        starting, bench = ChipsOptimizer.select_lineup(transfer_squad)
         used_chips = {chip.get("name", "").upper().replace(" ", "_") for chip in history.get("chips", [])}
         available_chips = {chip for chip in {"TC", "BB", "FH", "WC"} if chip not in used_chips}
         all_players = list(by_id.values())
@@ -77,6 +78,11 @@ class RecommendationService:
         chip_optimizer.free_hit_gain = self._lineup_gain(starting, free_hit_squad["starting_xi"] if free_hit_squad else [], "expected_points")
         chip_optimizer.wildcard_gain = self._lineup_gain(starting, wildcard_squad["starting_xi"] if wildcard_squad else [], "wildcard_expected_points")
         chip_analysis = chip_optimizer.recommend_chip_usage()
+        selected_chip = chip_analysis.get("use_chip")
+        selected_chip_squad = chip_analysis.get("opportunities", {}).get(selected_chip, {}).get("squad") if selected_chip else None
+        if selected_chip in {"FH", "WC"} and selected_chip_squad:
+            starting = selected_chip_squad["starting_xi"]
+            bench = selected_chip_squad["bench"]
         captain = max(starting, key=lambda player: player["expected_points"], default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]
         vice_captain = max(vice_candidates, key=lambda player: player["expected_points"], default=None)
@@ -96,6 +102,19 @@ class RecommendationService:
             "sources": ["FPL API", "RSS news"] + enrichment["available_sources"],
             "source_errors": enrichment["errors"],
         }
+
+    @staticmethod
+    def _apply_transfers(squad, transfers):
+        updated = list(squad)
+        for transfer in transfers:
+            outgoing_id = transfer.get("player_out", {}).get("id")
+            incoming = transfer.get("player_in")
+            if outgoing_id is None or not incoming:
+                continue
+            outgoing_index = next((index for index, player in enumerate(updated) if player.get("id") == outgoing_id), None)
+            if outgoing_index is not None and not any(player.get("id") == incoming.get("id") for player in updated):
+                updated[outgoing_index] = incoming
+        return updated
 
     def _fetch_enrichment(self, gameweek=None):
         values = {"fbref": {}, "odds": [], "available_sources": [], "errors": {}}
