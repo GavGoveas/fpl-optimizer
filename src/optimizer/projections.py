@@ -18,6 +18,8 @@ class ProjectionEngine:
             multiplier = max(0.65, min(1.25, 1.15 - (difficulty - 1) * 0.125))
             availability = self._availability(player, name, news_items, news_text)
             minutes_probability = self._minutes_probability(player, name, news_items)
+            attacking_signal, set_piece_signal = self._captain_evidence(name, fbref_stats or {}, player)
+            goal_probability = self._player_goal_probability(player, odds or [])
             base *= self._fbref_multiplier(name, fbref_stats or {})
             base *= self._odds_multiplier(player, odds or [])
             horizon_points = 0.0
@@ -37,6 +39,9 @@ class ProjectionEngine:
                 "expected_points": round(base * multiplier * availability * minutes_probability, 2),
                 "wildcard_expected_points": round(horizon_points, 2),
                 "wildcard_confidence": round(max(0.55, 1.0 - max(0, len(horizon_fixtures) - 1) * 0.025), 2),
+                "attacking_involvement": round(attacking_signal, 4),
+                "set_piece_involvement": round(set_piece_signal, 4),
+                "anytime_goal_probability": round(goal_probability, 4),
             })
             enriched["minutes_probability"] = round(minutes_probability, 3)
             enriched["clean_sheet_probability"] = round(max(0.0, min(1.0, (1.2 - difficulty) / 4.0)), 3)
@@ -134,6 +139,25 @@ class ProjectionEngine:
         values = stats.get(name, {})
         attacking = sum(float(values.get(key, 0) or 0) for key in ("xG", "xAG", "Gls", "Ast"))
         return 1.0 + min(0.15, attacking / 100)
+
+    @staticmethod
+    def _captain_evidence(name, stats, player):
+        values = stats.get(name, {})
+        attacking = sum(float(values.get(key, 0) or 0) for key in ("xG", "xAG", "Gls", "Ast", "Sh", "SoT"))
+        set_piece = sum(float(values.get(key, 0) or 0) for key in ("PK", "FK", "CK"))
+        attacking += sum(float(player.get(key, 0) or 0) for key in ("goals", "assists", "shots", "key_passes"))
+        set_piece += sum(float(player.get(key, 0) or 0) for key in ("penalties_order", "corners_order", "direct_freekicks_order"))
+        return attacking, set_piece
+
+    @staticmethod
+    def _player_goal_probability(player, odds):
+        player_name = ProjectionEngine._normalize_name(player.get("name") or f"{player.get('first_name', '')} {player.get('second_name', '')}")
+        probabilities = [
+            float(item.get("probability", 0) or 0)
+            for item in odds
+            if ProjectionEngine._normalize_name(item.get("player")) == player_name
+        ]
+        return max(probabilities, default=0.0)
 
     @staticmethod
     def _odds_multiplier(player, odds):

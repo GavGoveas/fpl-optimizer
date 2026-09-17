@@ -27,6 +27,14 @@ def test_projection_consumes_structured_news_status_and_minutes():
     assert result["expected_minutes"] == 36.0
 
 
+def test_projection_exposes_dynamic_captain_evidence():
+    player = {"id": 1, "first_name": "Fit", "second_name": "Player", "team": 1, "ep_next": "6.0", "status": "a"}
+    result = ProjectionEngine().project([player], [], gameweek=4, fbref_stats={"Fit Player": {"xG": 2, "PK": 1}}, odds=[])[0]
+
+    assert result["attacking_involvement"] > 0
+    assert result["set_piece_involvement"] > 0
+
+
 def test_projection_uses_fbref_and_market_odds():
     player = {"id": 1, "first_name": "Fit", "second_name": "Player", "team": 1, "team_name": "Team A", "ep_next": "6.0", "status": "a"}
     fixtures = [{"event": 5, "team_h": 1, "team_h_difficulty": 3, "team_a": 2, "team_a_difficulty": 3}]

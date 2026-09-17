@@ -86,6 +86,9 @@ class RecommendationService:
         captain = max(starting, key=self._captain_score, default=None)
         vice_candidates = [player for player in starting if not captain or player["id"] != captain["id"]]
         vice_captain = max(vice_candidates, key=self._captain_score, default=None)
+        if selected_chip_squad:
+            selected_chip_squad["captain"] = captain
+            selected_chip_squad["vice_captain"] = vice_captain
         captain_candidates = [
             {
                 "name": player["name"],
@@ -95,6 +98,9 @@ class RecommendationService:
                 "expected_minutes": player.get("expected_minutes", 0),
                 "fixture_difficulty": player.get("fixture_difficulty"),
                 "clean_sheet_probability": player.get("clean_sheet_probability"),
+                "attacking_involvement": player.get("attacking_involvement", 0),
+                "set_piece_involvement": player.get("set_piece_involvement", 0),
+                "anytime_goal_probability": player.get("anytime_goal_probability", 0),
             }
             for player in sorted(starting, key=self._captain_score, reverse=True)
         ]
@@ -133,9 +139,15 @@ class RecommendationService:
     def _captain_score(player):
         distribution = player.get("distribution") or {}
         distribution_mean = distribution.get("mean")
-        if distribution_mean is None:
-            return float(player.get("expected_points", 0) or 0)
-        return (float(player.get("expected_points", 0) or 0) + float(distribution_mean)) / 2
+        projected = float(player.get("expected_points", 0) or 0)
+        base = projected if distribution_mean is None else (projected + float(distribution_mean)) / 2
+        minutes = max(0.0, min(1.0, float(player.get("minutes_probability", 1) or 0)))
+        fixture_difficulty = player.get("fixture_difficulty")
+        fixture_factor = 1.0 if fixture_difficulty is None else max(0.7, min(1.2, 1.15 - (float(fixture_difficulty) - 1) * 0.125))
+        evidence = float(player.get("attacking_involvement", 0) or 0) + float(player.get("set_piece_involvement", 0) or 0) + float(player.get("anytime_goal_probability", 0) or 0)
+        if player.get("position") in {"DEF", "GKP"} and evidence <= 0:
+            return 0.0
+        return base * minutes * fixture_factor * (1.0 + min(0.25, float(player.get("anytime_goal_probability", 0) or 0)))
 
     def _fetch_enrichment(self, gameweek=None):
         values = {"fbref": {}, "odds": [], "available_sources": [], "errors": {}}
@@ -175,6 +187,9 @@ class RecommendationService:
             "expected_minutes": player["expected_minutes"],
             "minutes_probability": player.get("minutes_probability"),
             "clean_sheet_probability": player.get("clean_sheet_probability"),
+            "attacking_involvement": player.get("attacking_involvement", 0),
+            "set_piece_involvement": player.get("set_piece_involvement", 0),
+            "anytime_goal_probability": player.get("anytime_goal_probability", 0),
             "distribution": player.get("distribution", {}),
             "form": player.get("form"),
         }
