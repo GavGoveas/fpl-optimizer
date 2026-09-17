@@ -43,8 +43,27 @@ class TestOptimizer(unittest.TestCase):
 
         analysis = optimizer.analyze_transfer_hits()
 
-        self.assertEqual(analysis['transfer_count'], 1)
+        self.assertEqual(analysis['transfer_count'], 0)
         self.assertEqual(analysis['hit_count'], 0)
+
+    def test_necessary_plan_can_justify_hits_after_hold_baseline(self):
+        optimizer = TransferOptimizer(
+            squad=[
+                {"id": 1, "position": "MID", "price": 7, "expected_points": 2},
+                {"id": 2, "position": "FWD", "price": 8, "expected_points": 2},
+            ],
+            players=[
+                {"id": 3, "position": "MID", "price": 7, "expected_points": 10},
+                {"id": 4, "position": "FWD", "price": 8, "expected_points": 9},
+            ],
+            free_transfers=1,
+        )
+
+        analysis = optimizer.analyze_transfer_hits()
+
+        self.assertTrue(analysis["transfer_necessary"])
+        self.assertTrue(analysis["should_take_hits"])
+        self.assertEqual(analysis["hit_count"], 1)
 
 if __name__ == '__main__':
     unittest.main()

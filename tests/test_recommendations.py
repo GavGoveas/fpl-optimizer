@@ -63,6 +63,19 @@ def test_message_labels_the_planned_gameweek():
     assert "Bench order: Bench" in message
 
 
+def test_message_distinguishes_holding_transfers():
+    message = format_recommendation({
+        "gameweek": 5,
+        "free_transfers": 1,
+        "transfers": {"should_take_hits": False, "transfers": []},
+        "starting_xi": [],
+        "bench": [],
+        "chips": {"best_chip": None},
+    })
+
+    assert "Transfer strategy: HOLD TRANSFERS; no move is necessary" in message
+
+
 def test_squad_chip_suppresses_incompatible_hit_list():
     message = format_recommendation({
         "gameweek": 5,

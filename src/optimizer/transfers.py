@@ -1,3 +1,6 @@
+from statistics import median
+
+
 class TransferOptimizer:
     """Compare legal transfer plans using supplied expected points."""
 
@@ -88,6 +91,15 @@ class TransferOptimizer:
         gross_gain = sum(transfer["gain"] for transfer in transfers)
         hit_count = max(0, len(transfers) - self.free_transfers)
         hit_cost = hit_count * 4
+        banked_transfer_value = self._banked_transfer_value(candidates)
+        hold_baseline = banked_transfer_value
+        necessary = best_net_gain > hold_baseline
+        if not necessary:
+            transfers = []
+            gross_gain = 0.0
+            hit_count = 0
+            hit_cost = 0.0
+            best_net_gain = 0.0
         return {
             "transfers": transfers,
             "transfer_count": len(transfers),
@@ -96,8 +108,19 @@ class TransferOptimizer:
             "hit_cost": hit_cost,
             "gross_gain": gross_gain,
             "net_gain": gross_gain - hit_cost,
-            "should_take_hits": hit_count > 0 and gross_gain - hit_cost > 0,
+            "banked_transfer_value": round(banked_transfer_value, 2),
+            "hold_baseline": round(hold_baseline, 2),
+            "transfer_necessary": necessary,
+            "should_take_hits": necessary and hit_count > 0,
         }
+
+    def _banked_transfer_value(self, candidates):
+        """Value of preserving the transfer bank, scaled by current bank size."""
+        if not candidates or self.free_transfers >= 5:
+            return 0.0
+        gains = [float(candidate["gain"]) for candidate in candidates]
+        typical_opportunity = median(gains)
+        return max(0.0, typical_opportunity if self.free_transfers < 5 else 0.0)
 
     def get_recommendations(self):
         analysis = self.analyze_transfer_hits()

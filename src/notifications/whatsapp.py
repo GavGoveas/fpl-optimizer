@@ -30,7 +30,13 @@ def format_recommendation(recommendation):
     if chip in {"FH", "WC"} and chip_squad:
         lines.append(f"Transfer strategy: USE {chip}; do not apply the separate hit list")
     else:
-        lines.append(f"Transfer strategy: {'TAKE HITS' if transfer['should_take_hits'] else 'NO HITS'}")
+        if not transfer.get("transfers"):
+            strategy = "HOLD TRANSFERS; no move is necessary"
+        elif transfer["should_take_hits"]:
+            strategy = "TAKE HITS"
+        else:
+            strategy = "USE FREE TRANSFER ONLY"
+        lines.append(f"Transfer strategy: {strategy}")
         for item in transfer["transfers"]:
             lines.append(f"- {item['player_out']['name']} -> {item['player_in']['name']} ({item['gain']:.1f} projected points)")
     captain = recommendation.get("captain", {})
