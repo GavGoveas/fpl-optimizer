@@ -117,6 +117,23 @@ def test_message_includes_captain_candidates():
     assert "Captain candidates: Saka (8.4)" in message
 
 
+def test_validation_rejects_inconsistent_transfer_lineup():
+    starter = [{"id": 1, "name": "Out", "position": "MID"}]
+    recommendation = {
+        "starting_xi": starter,
+        "bench": [],
+        "captain": starter[0],
+        "vice_captain": starter[0],
+        "transfers": {"transfers": [{"player_out": {"id": 1, "name": "Out"}, "player_in": {"id": 2, "name": "In"}}]},
+        "chips": {"use_chip": None},
+    }
+
+    result = RecommendationService.validate_recommendation(recommendation, [{"event": 5}], {"events": []})
+
+    assert result["valid"] is False
+    assert any("lineup" in error for error in result["errors"])
+
+
 def test_blank_optional_environment_values_use_defaults(monkeypatch):
     monkeypatch.setenv("CHIP_MINIMUM_GAIN", "")
 

@@ -38,8 +38,9 @@ class RecommendationService:
         enrichment = self._fetch_enrichment(gameweek)
         team_names = {team["id"]: team["name"] for team in bootstrap.get("teams", [])}
         elements = [dict(player, team_name=team_names.get(player.get("team"), "")) for player in bootstrap["elements"]]
+        fixtures = self.fpl.get_current_gameweek_fixtures(gameweek)
         projected = self.projection_engine.project(
-            elements, self.fpl.get_current_gameweek_fixtures(gameweek), gameweek, news_items,
+            elements, fixtures, gameweek, news_items,
             enrichment["fbref"], enrichment["odds"],
             wildcard_horizon=settings.wildcard_horizon,
         )
@@ -104,7 +105,7 @@ class RecommendationService:
             }
             for player in sorted(starting, key=self._captain_score, reverse=True)
         ]
-        return {
+        recommendation = {
             "manager_id": manager_id,
             "gameweek": gameweek + 1,
             "source_gameweek": gameweek,
@@ -121,6 +122,51 @@ class RecommendationService:
             "sources": ["FPL API", "RSS news"] + enrichment["available_sources"],
             "source_errors": enrichment["errors"],
         }
+        recommendation["validation"] = self.validate_recommendation(recommendation, fixtures, bootstrap)
+        if not recommendation["validation"]["valid"]:
+            raise ValueError("Recommendation validation failed: " + "; ".join(recommendation["validation"]["errors"]))
+        return recommendation
+
+    @classmethod
+    def validate_recommendation(cls, recommendation, fixtures, bootstrap):
+        errors = []
+        starting = recommendation.get("starting_xi", [])
+        bench = recommendation.get("bench", [])
+        all_players = starting + bench
+        player_ids = [player.get("id") for player in all_players]
+        if len(starting) != 11 or len(bench) != 4:
+            errors.append("lineup must contain exactly 11 starters and 4 bench players")
+        if len(set(player_ids)) != len(player_ids):
+            errors.append("lineup contains duplicate players")
+        if not fixtures:
+            errors.append("no fixtures were returned for the target gameweek")
+        if not recommendation.get("captain") or recommendation["captain"].get("id") not in {player.get("id") for player in starting}:
+            errors.append("captain is not in the starting XI")
+        if not recommendation.get("vice_captain") or recommendation["vice_captain"].get("id") not in {player.get("id") for player in starting}:
+            errors.append("vice-captain is not in the starting XI")
+        transfer = recommendation.get("transfers", {})
+        final_ids = set(player_ids)
+        if recommendation.get("chips", {}).get("use_chip") not in {"FH", "WC"}:
+            for move in transfer.get("transfers", []):
+                outgoing_id = move.get("player_out", {}).get("id")
+                incoming_id = move.get("player_in", {}).get("id")
+                if outgoing_id in final_ids:
+                    errors.append(f"transferred-out player remains in final squad: {move.get('player_out', {}).get('name', outgoing_id)}")
+                if incoming_id not in final_ids:
+                    errors.append(f"transferred-in player is missing from final squad: {move.get('player_in', {}).get('name', incoming_id)}")
+        if recommendation.get("chips", {}).get("use_chip") == "BB":
+            unavailable_bench = [
+                player.get("name", "unknown") for player in bench
+                if float(player.get("minutes_probability", 0) or 0) <= 0 or float(player.get("availability", 0) or 0) <= 0
+            ]
+            if unavailable_bench:
+                errors.append("Bench Boost bench includes unavailable players: " + ", ".join(unavailable_bench))
+        captain = recommendation.get("captain") or {}
+        if captain.get("position") in {"DEF", "GKP"}:
+            evidence = sum(float(captain.get(field, 0) or 0) for field in ("attacking_involvement", "set_piece_involvement", "anytime_goal_probability"))
+            if evidence <= 0:
+                errors.append("defensive captain has no live attacking, set-piece, or goal evidence")
+        return {"valid": not errors, "errors": errors, "checks": {"fixtures": bool(fixtures), "lineup": len(starting) == 11 and len(bench) == 4, "captain": bool(recommendation.get("captain")), "bench_boost": recommendation.get("chips", {}).get("use_chip") != "BB" or not errors}}
 
     @staticmethod
     def _apply_transfers(squad, transfers):

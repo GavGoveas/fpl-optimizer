@@ -6,6 +6,8 @@ from src.recommendations import RecommendationService
 
 def main():
     recommendation = RecommendationService().build()
+    if not recommendation.get("validation", {}).get("valid"):
+        raise RuntimeError("Recommendation failed its final validation gate")
     message = format_recommendation(recommendation)
     notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
     notifier.send(message)
