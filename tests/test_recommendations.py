@@ -50,12 +50,16 @@ def test_message_labels_the_planned_gameweek():
         "current_free_transfers": 1,
         "free_transfers": 2,
         "transfers": {"should_take_hits": False, "transfers": []},
+        "starting_xi": [{"name": "Starter"}],
+        "bench": [{"name": "Bench"}],
         "chips": {"best_chip": None},
     })
 
     assert "FPL GW 5 plan" in message
     assert "GW 4 unused free transfers" not in message
     assert "GW 5 free transfers available: 2" in message
+    assert "Starting XI: Starter" in message
+    assert "Bench order: Bench" in message
 
 
 def test_squad_chip_suppresses_incompatible_hit_list():

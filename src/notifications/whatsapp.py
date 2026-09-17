@@ -40,6 +40,11 @@ def format_recommendation(recommendation):
         vice_captain = chip_squad.get("vice_captain") or vice_captain
     lines.append(f"Captain: {captain.get('name', 'none')}")
     lines.append(f"Vice-captain: {vice_captain.get('name', 'none')}")
+    lineup = chip_squad if chip in {"FH", "WC"} and chip_squad else recommendation
+    starting_xi = lineup.get("starting_xi", [])
+    bench = lineup.get("bench", [])
+    lines.append("Starting XI: " + ", ".join(player["name"] for player in starting_xi))
+    lines.append("Bench order: " + ", ".join(player["name"] for player in bench))
     chip_reason = chip_data.get("recommendation", {}).get("reason", "no chip recommendation was generated")
     if chip:
         lines.append(f"USE {chip} because {chip_reason}")

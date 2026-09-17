@@ -57,9 +57,7 @@ class RecommendationService:
             bank=manager.get("last_deadline_bank", manager.get("bank", 0)) / 10,
             free_transfers=free_transfers,
         ).analyze_transfer_hits()
-        starter_ids = {pick["element"] for pick in picks if pick.get("position", 99) <= 11}
-        starting = [player for player in squad if player["id"] in starter_ids]
-        bench = [player for player in squad if player["id"] not in starter_ids]
+        starting, bench = ChipsOptimizer.select_lineup(squad)
         used_chips = {chip.get("name", "").upper().replace(" ", "_") for chip in history.get("chips", [])}
         available_chips = {chip for chip in {"TC", "BB", "FH", "WC"} if chip not in used_chips}
         all_players = list(by_id.values())
@@ -91,6 +89,8 @@ class RecommendationService:
             "free_transfers": free_transfers,
             "transfers": transfer_analysis,
             "chips": chip_analysis,
+            "starting_xi": starting,
+            "bench": bench,
             "captain": captain,
             "vice_captain": vice_captain,
             "sources": ["FPL API", "RSS news"] + enrichment["available_sources"],
