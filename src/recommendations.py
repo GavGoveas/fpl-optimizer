@@ -133,6 +133,9 @@ class RecommendationService:
             "wildcard_expected_points": player["wildcard_expected_points"],
             "wildcard_confidence": player["wildcard_confidence"],
             "expected_minutes": player["expected_minutes"],
+            "minutes_probability": player.get("minutes_probability"),
+            "clean_sheet_probability": player.get("clean_sheet_probability"),
+            "distribution": player.get("distribution", {}),
             "form": player.get("form"),
         }
 

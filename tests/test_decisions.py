@@ -1,5 +1,6 @@
 from src.optimizer.chips import ChipsOptimizer
 from src.optimizer.projections import ProjectionEngine
+from src.backtesting import BacktestMetrics
 
 
 def test_projection_uses_fixture_difficulty_and_injury_status():
@@ -13,6 +14,7 @@ def test_projection_uses_fixture_difficulty_and_injury_status():
 
     assert result[0]["expected_points"] > result[1]["expected_points"]
     assert result[1]["availability"] == 0.0
+    assert "distribution" in result[0]
 
 
 def test_projection_consumes_structured_news_status_and_minutes():
@@ -100,3 +102,19 @@ def test_projection_estimates_minutes_from_historical_starts():
     result = ProjectionEngine().project([player], [], gameweek=4)[0]
 
     assert result["expected_minutes"] == 90
+
+
+def test_lineup_selects_best_legal_formation():
+    squad = [{"id": "g", "position": "GKP", "expected_points": 4}]
+    squad += [{"id": f"d{index}", "position": "DEF", "expected_points": 3 + index} for index in range(5)]
+    squad += [{"id": f"m{index}", "position": "MID", "expected_points": 3 + index} for index in range(5)]
+    squad += [{"id": f"f{index}", "position": "FWD", "expected_points": 3 + index} for index in range(3)]
+    starters, bench = ChipsOptimizer.select_lineup(squad)
+    assert len(starters) == 11
+    assert len(bench) == 3
+
+
+def test_backtest_metrics_are_calculated():
+    result = BacktestMetrics.evaluate([2, 4, 6], [1, 5, 7])
+    assert result["count"] == 3
+    assert result["mae"] == 1.0

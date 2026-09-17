@@ -1,4 +1,10 @@
+from src.optimizer.simulation import PlayerPointSimulator
+
+
 class ProjectionEngine:
+    def __init__(self, simulator=None):
+        self.simulator = simulator or PlayerPointSimulator()
+
     def project(self, players, fixtures=None, gameweek=None, news=None, fbref_stats=None, odds=None, wildcard_horizon=3):
         fixture_map = self._fixture_map(fixtures or [], gameweek)
         horizon_maps = self._fixture_maps(fixtures or [], gameweek, wildcard_horizon)
@@ -32,6 +38,9 @@ class ProjectionEngine:
                 "wildcard_expected_points": round(horizon_points, 2),
                 "wildcard_confidence": round(max(0.55, 1.0 - max(0, len(horizon_fixtures) - 1) * 0.025), 2),
             })
+            enriched["minutes_probability"] = round(minutes_probability, 3)
+            enriched["clean_sheet_probability"] = round(max(0.0, min(1.0, (1.2 - difficulty) / 4.0)), 3)
+            enriched["distribution"] = self.simulator.simulate(enriched)
             projections.append(enriched)
         return projections
 

@@ -86,6 +86,9 @@ class OddsAPI:
                 for market in bookmaker.get("markets", []):
                     if market.get("key") != "player_goal_scorer_anytime":
                         continue
+                    raw_outcomes = [outcome for outcome in market.get("outcomes", []) if float(outcome.get("price") or 0) > 1]
+                    implied = [1.0 / float(outcome["price"]) for outcome in raw_outcomes]
+                    overround = sum(implied)
                     for outcome in market.get("outcomes", []):
                         name = (outcome.get("description") or outcome.get("name") or "").strip()
                         if not name or name.lower() in {"yes", "no"}:
@@ -93,7 +96,7 @@ class OddsAPI:
                         price = float(outcome.get("price") or 0)
                         if price <= 1:
                             continue
-                        probability = 1.0 / price
+                        probability = (1.0 / price) / overround if overround else 0.0
                         key = (name, event_id)
                         if key in seen:
                             continue

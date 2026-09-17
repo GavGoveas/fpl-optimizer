@@ -179,9 +179,18 @@ class ChipsOptimizer:
 
     @classmethod
     def select_lineup(cls, squad, score_field="expected_points"):
-        starters = []
-        for position, count in (("GKP", 1), ("DEF", 3), ("MID", 2), ("FWD", 1)):
-            starters.extend(sorted((player for player in squad if player.get("position") == position), key=lambda player: cls._points(player, score_field), reverse=True)[:count])
+        formations = ((3, 4, 3), (3, 5, 2), (4, 3, 3), (4, 4, 2), (4, 5, 1), (5, 3, 2), (5, 4, 1))
+        best = None
+        for defenders, midfielders, forwards in formations:
+            selected = []
+            for position, count in (("GKP", 1), ("DEF", defenders), ("MID", midfielders), ("FWD", forwards)):
+                selected.extend(sorted((player for player in squad if player.get("position") == position), key=lambda player: cls._points(player, score_field), reverse=True)[:count])
+            if len(selected) != 11:
+                continue
+            score = sum(cls._points(player, score_field) for player in selected)
+            if best is None or score > best[0]:
+                best = (score, selected)
+        starters = best[1] if best else []
         remaining = [player for player in squad if player not in starters]
         starters.extend(sorted(remaining, key=lambda player: cls._points(player, score_field), reverse=True)[:11 - len(starters)])
         bench = sorted((player for player in squad if player not in starters), key=lambda player: cls._points(player, score_field), reverse=True)
