@@ -1,50 +1,66 @@
 from src.optimizer.simulation import PlayerPointSimulator
+from datetime import datetime, timedelta, timezone
 
 
 class ProjectionEngine:
     def __init__(self, simulator=None):
         self.simulator = simulator or PlayerPointSimulator()
 
-    def project(self, players, fixtures=None, gameweek=None, news=None, fbref_stats=None, odds=None, wildcard_horizon=3):
+    def project(self, players, fixtures=None, gameweek=None, news=None, fbref_stats=None, odds=None, wildcard_horizon=3, news_freshness_hours=72, prediction_time=None):
         fixture_map = self._fixture_map(fixtures or [], gameweek)
-        horizon_maps = self._fixture_maps(fixtures or [], gameweek, wildcard_horizon)
-        news_items = list(news or [])
-        news_text = " ".join(self._news_text(item) for item in news_items)
+        now = prediction_time or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            raise ValueError("prediction_time must be timezone-aware")
+        freshness_limit = timedelta(hours=max(0.0, float(news_freshness_hours)))
+        news_items = [item for item in (news or []) if self._news_is_fresh(item, now, freshness_limit)]
         projections = []
         for player in players:
             name = f"{player.get('first_name', '')} {player.get('second_name', '')}".strip()
-            base = float(player.get("ep_next") or player.get("form") or 0)
-            difficulty = fixture_map.get(player.get("team"), 3.0)
-            multiplier = max(0.65, min(1.25, 1.15 - (difficulty - 1) * 0.125))
-            availability = self._availability(player, name, news_items, news_text)
+            base = float(player.get("ep_next") or 0)
+            difficulty = fixture_map.get(player.get("team"))
+            fixture_count = sum(
+                1 for fixture in fixtures or []
+                if fixture.get("event") == gameweek
+                and player.get("team") in (fixture.get("team_h"), fixture.get("team_a"))
+            )
+            availability = self._availability(player, name, news_items)
             minutes_probability = self._minutes_probability(player, name, news_items)
             attacking_signal, set_piece_signal = self._captain_evidence(name, fbref_stats or {}, player)
             goal_probability = self._player_goal_probability(player, odds or [])
-            base *= self._fbref_multiplier(name, fbref_stats or {})
-            base *= self._odds_multiplier(player, odds or [])
+            source_stats = (fbref_stats or {}).get(name, {})
+            ninety_minutes = float(source_stats.get("90s", 0) or 0)
+            expected_goals = float(source_stats.get("xG", 0) or 0) / ninety_minutes * minutes_probability if ninety_minutes > 0 else None
+            expected_assists = float(source_stats.get("xAG", 0) or 0) / ninety_minutes * minutes_probability if ninety_minutes > 0 else None
             horizon_points = 0.0
-            horizon_fixtures = horizon_maps.get(player.get("team"), [])
-            if not horizon_fixtures:
-                horizon_fixtures = [difficulty] * wildcard_horizon
-            for week_index, horizon_difficulty in enumerate(horizon_fixtures[:wildcard_horizon]):
-                horizon_multiplier = max(0.65, min(1.25, 1.15 - (horizon_difficulty - 1) * 0.125))
-                horizon_confidence = max(0.55, 1.0 - week_index * 0.05)
-                horizon_points += base * horizon_multiplier * availability * minutes_probability * horizon_confidence
+            expected_points_by_event = player.get("expected_points_by_event", {})
+            first_event = gameweek if gameweek is not None else 1
+            horizon_events = range(first_event, first_event + max(0, wildcard_horizon))
+            for event in horizon_events:
+                event_points = expected_points_by_event.get(str(event), expected_points_by_event.get(event))
+                if event_points is not None:
+                    horizon_points += max(0.0, float(event_points)) * availability
             enriched = dict(player)
             enriched.update({
                 "name": name,
                 "fixture_difficulty": difficulty,
                 "availability": availability,
                 "expected_minutes": round(90 * minutes_probability, 1),
-                "expected_points": round(base * multiplier * availability * minutes_probability, 2),
+                "expected_points": round(base * (availability if availability is not None else 1.0), 2) if fixture_count else 0.0,
+                "availability_verified": availability is not None,
                 "wildcard_expected_points": round(horizon_points, 2),
-                "wildcard_confidence": round(max(0.55, 1.0 - max(0, len(horizon_fixtures) - 1) * 0.025), 2),
+                "wildcard_confidence": round(sum(event in expected_points_by_event or str(event) in expected_points_by_event for event in horizon_events) / max(1, wildcard_horizon), 2),
+                "wildcard_projection_available": bool(expected_points_by_event),
+                "fixture_count": fixture_count,
                 "attacking_involvement": round(attacking_signal, 4),
                 "set_piece_involvement": round(set_piece_signal, 4),
                 "anytime_goal_probability": round(goal_probability, 4),
             })
             enriched["minutes_probability"] = round(minutes_probability, 3)
-            enriched["clean_sheet_probability"] = round(max(0.0, min(1.0, (1.2 - difficulty) / 4.0)), 3)
+            clean_sheet_probability = self._fixture_clean_sheet_probability(fixtures or [], player.get("team"), gameweek)
+            enriched["clean_sheet_probability"] = clean_sheet_probability
+            enriched["expected_goals"] = expected_goals
+            enriched["expected_assists"] = expected_assists
+            enriched["fbref_metrics"] = source_stats
             enriched["distribution"] = self.simulator.simulate(enriched)
             projections.append(enriched)
         return projections
@@ -53,7 +69,7 @@ class ProjectionEngine:
     def _fixture_map(fixtures, gameweek):
         values = {}
         for fixture in fixtures:
-            if gameweek is not None and fixture.get("event") != gameweek + 1:
+            if gameweek is not None and fixture.get("event") != gameweek:
                 continue
             for team_key, difficulty_key in (("team_h", "team_h_difficulty"), ("team_a", "team_a_difficulty")):
                 team = fixture.get(team_key)
@@ -63,22 +79,7 @@ class ProjectionEngine:
         return {team: sum(scores) / len(scores) for team, scores in values.items()}
 
     @staticmethod
-    def _fixture_maps(fixtures, gameweek, horizon):
-        values = {}
-        first_event = (gameweek or 0) + 1
-        for fixture in fixtures:
-            event = fixture.get("event")
-            if event not in range(first_event, first_event + horizon):
-                continue
-            for team_key, difficulty_key in (("team_h", "team_h_difficulty"), ("team_a", "team_a_difficulty")):
-                team = fixture.get(team_key)
-                difficulty = fixture.get(difficulty_key)
-                if team is not None and difficulty is not None:
-                    values.setdefault(team, {}).setdefault(event, []).append(float(difficulty))
-        return {team: [sum(values_by_event[event]) / len(values_by_event[event]) for event in sorted(values_by_event)] for team, values_by_event in values.items()}
-
-    @staticmethod
-    def _availability(player, name, news_items, news_text):
+    def _availability(player, name, news_items):
         if player.get("status", "a") in {"i", "s", "u"}:
             return 0.0
         chance = player.get("chance_of_playing_next_round")
@@ -96,11 +97,16 @@ class ProjectionEngine:
             if status in {"injured", "suspended", "ruled_out"}:
                 return 0.0
             if status == "doubtful":
-                return 0.5
+                probability = analysis.get("availability_probability")
+                if probability is not None:
+                    return max(0.0, min(1.0, float(probability)))
+                continue
             if status in {"available", "expected_to_start"}:
                 return 1.0
-        if name and name.lower() in news_text and chance is None:
-            return 0.75
+        if chance is not None:
+            return max(0.0, min(1.0, float(chance) / 100))
+        if player.get("status") == "d":
+            return None
         return 1.0
 
     @staticmethod
@@ -122,23 +128,27 @@ class ProjectionEngine:
         minutes = float(player.get("minutes", 0) or 0)
         starts = float(player.get("starts", 0) or 0)
         if minutes <= 0:
-            return 0.35
+            return 0.0
         historical_start_rate = starts / max(1.0, minutes / 90)
-        return max(0.35, min(1.0, historical_start_rate))
+        return max(0.0, min(1.0, historical_start_rate))
 
     @staticmethod
-    def _news_text(item):
-        return f"{item.get('title', '')} {item.get('summary', '')} {item.get('content', '')} {item.get('gemini_analysis', '')}".lower()
+    def _news_is_fresh(item, now, freshness_limit):
+        timestamp = item.get("published_at_utc")
+        if not timestamp:
+            return False
+        try:
+            published = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if published.tzinfo is None:
+            return False
+        age = now.astimezone(timezone.utc) - published.astimezone(timezone.utc)
+        return timedelta(0) <= age <= freshness_limit
 
     @staticmethod
     def _normalize_name(value):
         return "".join(ch for ch in (value or "").lower() if ch.isalnum())
-
-    @staticmethod
-    def _fbref_multiplier(name, stats):
-        values = stats.get(name, {})
-        attacking = sum(float(values.get(key, 0) or 0) for key in ("xG", "xAG", "Gls", "Ast"))
-        return 1.0 + min(0.15, attacking / 100)
 
     @staticmethod
     def _captain_evidence(name, stats, player):
@@ -160,34 +170,17 @@ class ProjectionEngine:
         return max(probabilities, default=0.0)
 
     @staticmethod
-    def _odds_multiplier(player, odds):
-        if not odds:
-            return 1.0
-        player_name = ProjectionEngine._normalize_name(player.get("name") or player.get("first_name"))
-        for item in odds:
-            if not isinstance(item, dict):
+    def _fixture_clean_sheet_probability(fixtures, team_id, gameweek):
+        values = []
+        for fixture in fixtures:
+            if fixture.get("event") != gameweek:
                 continue
-            if "player" in item:
-                item_name = ProjectionEngine._normalize_name(item.get("player"))
-                if item_name and item_name == player_name:
-                    probability = float(item.get("probability", 0.5) or 0.5)
-                    return max(0.85, min(1.2, 0.9 + (probability - 0.5) * 0.7))
-            team_name = str(player.get("team_name") or "").lower()
-            if team_name not in {str(item.get("home_team", "")).lower(), str(item.get("away_team", "")).lower()}:
-                continue
-            home = str(item.get("home_team", "")).lower() == team_name
-            probability = 0.5
-            for bookmaker in item.get("bookmakers", []):
-                for market in bookmaker.get("markets", []):
-                    if market.get("key") != "h2h":
-                        continue
-                    outcome_name = item.get("home_team" if home else "away_team")
-                    outcome = next((entry for entry in market.get("outcomes", []) if entry.get("name") == outcome_name), None)
-                    if outcome and outcome.get("price"):
-                        probability = 1.0 / float(outcome["price"])
-                        break
-            return max(0.85, min(1.15, 0.85 + probability * 0.3))
-        return 1.0
+            key = "team_h_clean_sheet_probability" if fixture.get("team_h") == team_id else "team_a_clean_sheet_probability" if fixture.get("team_a") == team_id else None
+            if key and fixture.get(key) is not None:
+                values.append(max(0.0, min(1.0, float(fixture[key]))))
+        if not values:
+            return None
+        return round(1 - __import__("math").prod(1 - value for value in values), 4)
 
 
 Projections = ProjectionEngine

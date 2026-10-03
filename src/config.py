@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
@@ -28,12 +29,10 @@ class Settings:
     telegram_bot_token: str = _env("TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str = _env("TELEGRAM_CHAT_ID")
     manager_id: int | None = int(_env("FPL_MANAGER_ID")) if _env("FPL_MANAGER_ID") else None
-    free_transfers_override: int | None = int(_env("FPL_FREE_TRANSFERS")) if _env("FPL_FREE_TRANSFERS") else None
-    notification_day: str = _env("NOTIFICATION_DAY", "Friday")
-    notification_time: str = _env("NOTIFICATION_TIME", "21:00")
     timezone: str = _env("TIMEZONE", "Asia/Kolkata")
-    chip_minimum_gain: float = float(_env("CHIP_MINIMUM_GAIN", "4"))
     wildcard_horizon: int = int(_env("WILDCARD_HORIZON", "10"))
+    run_artifact_dir: Path = Path(_env("FPL_RUN_ARTIFACT_DIR", ".fplcopilot/runs"))
+    news_freshness_hours: float = float(_env("NEWS_FRESHNESS_HOURS", "72"))
 
 
 settings = Settings()
