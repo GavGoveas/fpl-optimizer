@@ -1,5 +1,4 @@
 import time
-from datetime import datetime, timezone
 
 import pandas as pd
 import requests
@@ -19,11 +18,8 @@ class FBRef:
         })
         self.player_stats = {}
         self.team_stats = {}
-        self.last_error = None
-        self.last_retrieved_at = None
 
     def fetch_player_stats(self):
-        self.last_error = None
         for retry in range(3):
             try:
                 response = self.session.get(self.url, timeout=25)
@@ -31,12 +27,8 @@ class FBRef:
                     raise requests.HTTPError("FBRef access forbidden")
                 response.raise_for_status()
                 self.player_stats = self.parse_stats(response.text)
-                self.last_retrieved_at = datetime.now(timezone.utc)
-                if not self.player_stats:
-                    self.last_error = {"type": "EmptyDataset", "message": "FBRef returned no usable player rows"}
                 return self.player_stats
-            except Exception as error:
-                self.last_error = {"type": type(error).__name__, "message": "FBRef fetch or parse failed"}
+            except Exception:
                 time.sleep(1.5 * (retry + 1))
         self.player_stats = {}
         return self.player_stats

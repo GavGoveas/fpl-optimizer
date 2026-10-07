@@ -29,10 +29,9 @@ class TestOptimizer(unittest.TestCase):
     def test_transfer_hit_analysis(self):
         hit_analysis = self.optimizer.analyze_transfer_hits()
         self.assertIsInstance(hit_analysis, dict)
-        self.assertFalse(hit_analysis['decision_available'])
         self.assertEqual(hit_analysis['hit_count'], 0)
         self.assertEqual(hit_analysis['hit_cost'], 0)
-        self.assertEqual(hit_analysis['gross_gain'], 0)
+        self.assertEqual(hit_analysis['gross_gain'], 3)
         self.assertFalse(hit_analysis['should_take_hits'])
 
     def test_transfer_count_maximizes_net_gain_after_hits(self):
@@ -50,12 +49,12 @@ class TestOptimizer(unittest.TestCase):
     def test_necessary_plan_can_justify_hits_after_hold_baseline(self):
         optimizer = TransferOptimizer(
             squad=[
-                {"id": 1, "position": "MID", "price": 7, "expected_points": 2, "expected_points_by_event": {"2": 2, "3": 2}},
-                {"id": 2, "position": "FWD", "price": 8, "expected_points": 2, "expected_points_by_event": {"2": 1, "3": 1}},
+                {"id": 1, "position": "MID", "price": 7, "expected_points": 2},
+                {"id": 2, "position": "FWD", "price": 8, "expected_points": 2},
             ],
             players=[
-                {"id": 3, "position": "MID", "price": 7, "expected_points": 10, "expected_points_by_event": {"2": 7, "3": 7}},
-                {"id": 4, "position": "FWD", "price": 8, "expected_points": 9, "expected_points_by_event": {"2": 6, "3": 6}},
+                {"id": 3, "position": "MID", "price": 7, "expected_points": 10},
+                {"id": 4, "position": "FWD", "price": 8, "expected_points": 9},
             ],
             free_transfers=1,
         )

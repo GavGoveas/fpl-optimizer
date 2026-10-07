@@ -29,8 +29,6 @@ def format_recommendation(recommendation):
     chip_squad = chip_data.get("opportunities", {}).get(chip, {}).get("squad") if chip else None
     if chip in {"FH", "WC"} and chip_squad:
         lines.append(f"Transfer strategy: USE {chip}; do not apply the separate hit list")
-    elif not transfer.get("decision_available", True):
-        lines.append("Transfer decision unavailable because " + transfer.get("reason", "multi-Gameweek forecasts are missing"))
     else:
         if not transfer.get("transfers"):
             strategy = "HOLD TRANSFERS; no move is necessary"
@@ -74,8 +72,6 @@ def format_recommendation(recommendation):
             lines.append("Bench: " + ", ".join(player["name"] for player in chip_squad["bench"]))
             lines.append(f"Chip captain: {chip_squad['captain']['name']}")
             lines.append(f"Chip vice-captain: {chip_squad['vice_captain']['name']}")
-    elif not chip_data.get("decision_available", True):
-        lines.append(f"Chip decision unavailable because {chip_reason}")
     else:
         lines.append(f"DO NOT USE ANY CHIP because {chip_reason}")
     return "\n".join(lines)

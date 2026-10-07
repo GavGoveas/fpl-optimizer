@@ -1,56 +1,50 @@
+from flask import Flask, render_template
+import schedule
+import time
 from datetime import datetime
-from zoneinfo import ZoneInfo
-
-from flask import Flask, jsonify
-
-from src.config import settings
-from src.data.fpl_api import FPLAPI
+from data.fpl_api import fetch_fpl_data
+from data.odds_api import fetch_odds_data
+from data.fbref import fetch_fbref_data
+from data.soccerdata import fetch_soccerdata
+from data.news import fetch_news_data
+from optimizer.transfers import recommend_transfers
+from optimizer.chips import recommend_chips
+from optimizer.projections import calculate_projections
 
 app = Flask(__name__)
 
+def get_recommendations():
+    fpl_data = fetch_fpl_data()
+    odds_data = fetch_odds_data()
+    fbref_data = fetch_fbref_data()
+    soccerdata = fetch_soccerdata()
+    news_data = fetch_news_data()
 
-@app.get("/health")
-def health():
-    return jsonify({"status": "ok"})
+    transfers = recommend_transfers(fpl_data, odds_data, fbref_data)
+    chips = recommend_chips(fpl_data, odds_data)
+    projections = calculate_projections(fpl_data)
 
+    return {
+        "transfers": transfers,
+        "chips": chips,
+        "projections": projections,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
-@app.get("/api/schedule")
-def schedule_state():
-    try:
-        fpl = FPLAPI()
-        bootstrap = fpl.get_bootstrap()
-        event = fpl.select_next_gameweek(bootstrap.get("events", []))
-        if event is None:
-            return jsonify({"available": False, "reason": "No upcoming FPL deadline is published"}), 503
-        deadline = datetime.fromisoformat(str(event["deadline_time"]).replace("Z", "+00:00"))
-        if deadline.tzinfo is None:
-            return jsonify({"available": False, "reason": "FPL returned a deadline without timezone"}), 503
-        local_deadline = deadline.astimezone(ZoneInfo(settings.timezone))
-        fixtures = fpl.get_current_gameweek_fixtures(event["id"])
-        kickoff_times = []
-        for fixture in fixtures:
-            value = fixture.get("kickoff_time")
-            if value:
-                kickoff = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-                if kickoff.tzinfo is not None:
-                    kickoff_times.append(kickoff.astimezone(ZoneInfo("UTC")))
-        return jsonify({
-            "available": True,
-            "gameweek": event["id"],
-            "deadline_utc": deadline.astimezone(ZoneInfo("UTC")).isoformat().replace("+00:00", "Z"),
-            "deadline_local": local_deadline.isoformat(),
-            "display_timezone": settings.timezone,
-            "fixture_count": len(fixtures),
-            "first_fixture_utc": min(kickoff_times).isoformat().replace("+00:00", "Z") if kickoff_times else None,
-            "last_fixture_utc": max(kickoff_times).isoformat().replace("+00:00", "Z") if kickoff_times else None,
-        })
-    except Exception:
-        return jsonify({"available": False, "reason": "FPL schedule data could not be retrieved"}), 503
+@app.route('/')
+def index():
+    recommendations = get_recommendations()
+    return render_template('dashboard.html', recommendations=recommendations)
 
+def job():
+    print("Fetching recommendations for the upcoming game week...")
+    recommendations = get_recommendations()
+    # Here you would implement the logic to send notifications or update the dashboard
 
-def main():
-    app.run(host="127.0.0.1", port=5000, debug=False)
+schedule.every().friday.at("21:00").do(job)
 
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+    app.run(debug=True)
